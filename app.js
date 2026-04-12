@@ -1170,19 +1170,19 @@ function renderUserDashboard() {
         <!-- Opening Stock -->
         <div>
           <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Opening Stock *</label>
-          <input id="f-opening" type="number" min="0" class="form-input" placeholder="0" oninput="calcStock()" />
+          <input id="f-opening" type="number" min="0" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Received -->
         <div>
           <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Received</label>
-          <input id="f-received" type="number" min="0" class="form-input" placeholder="0" oninput="calcStock()" />
+          <input id="f-received" type="number" min="0" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Damaged -->
         <div>
           <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged Stock</label>
-          <input id="f-damaged" type="number" min="0" class="form-input" placeholder="0" oninput="calcStock()" />
+          <input id="f-damaged" type="number" min="0" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Closing -->
