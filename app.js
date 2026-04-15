@@ -151,8 +151,8 @@ function printUserReport() {
       <td>${e.productName}</td>
       <td>${e.opening}</td>
       <td>${e.received}</td>
-      <td>${e.damaged}</td>
       <td>${e.disbursed || 0}</td>
+      <td>${e.damaged}</td>
       <td>${e.closing}</td>
       <td>${e.total}</td>
       <td>${e.variance !== 0 ? `⚠ ${e.variance}` : '✓ 0'}</td>
@@ -187,10 +187,10 @@ function printUserReport() {
             <th style="padding:8px;text-align:left;border:1px solid #ddd;">Product Name</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Opening Stock</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Received Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Damaged Stock</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Stock Out</th>
+            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Damaged Stock</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Closing Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Total Stock</th>
+            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Remaining Stock</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Variance</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Time</th>
             <th style="padding:8px;text-align:center;border:1px solid #ddd;">Shift</th>
@@ -203,8 +203,8 @@ function printUserReport() {
           <tr style="background:#f5f5f5;font-weight:700;">
             <td style="padding:8px;border:1px solid #ddd;">TOTALS</td>
             <td colspan="2" style="border:1px solid #ddd;"></td>
-            <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalDamaged}</td>
             <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalDisbursed}</td>
+            <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalDamaged}</td>
             <td style="border:1px solid #ddd;"></td>
             <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalStock}</td>
             <td colspan="3" style="border:1px solid #ddd;"></td>
@@ -320,6 +320,47 @@ function renderPage(page) {
   }
 }
 
+function getLowStockHTML() {
+  const entries = LS.entries();
+  const products = LS.products().filter(p => p.active);
+  const lowStock = [];
+  
+  products.forEach(p => {
+    const latest = entries.filter(e => e.productId === p.id).sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
+    })[0];
+    
+    // Low stock threshold: <= 20
+    const stock = latest ? Number(latest.closing) : 0;
+    if (stock <= 20) {
+      lowStock.push({ name: p.name, stock, unit: p.unit });
+    }
+  });
+
+  if (lowStock.length === 0) return '';
+  
+  lowStock.sort((a, b) => a.stock - b.stock);
+
+  return `
+    <div class="glass rounded-xl p-4 glow-red border border-red-500/30 animate-fade-in relative overflow-hidden">
+      <div class="absolute right-0 top-0 w-32 h-32 bg-red-500/10 blur-3xl -z-10 rounded-full"></div>
+      <div class="flex items-center gap-3 mb-3 relative z-10">
+        <div class="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+          <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
+        </div>
+        <div>
+          <div class="font-700 text-red-400 text-sm">Low Stock Alert</div>
+          <div class="text-xs text-red-400/80">The following items are running out (< 20 items)</div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 relative z-10">
+        ${lowStock.map(p => `<span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm">${p.name}: <strong class="text-white ml-1">${p.stock}</strong> <span class="text-xs uppercase opacity-70 ml-1">${p.unit}</span></span>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  ADMIN HOME
 // ════════════════════════════════════════════════════════════════════════════
@@ -333,6 +374,7 @@ function renderAdminHome() {
 
   return `
   <div class="stagger space-y-6">
+    ${getLowStockHTML()}
     <!-- Stats Row -->
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
       ${statCard('fa-boxes-stacked', 'Total Entries', entries.length, 'badge-blue', 'All time')}
@@ -356,7 +398,7 @@ function renderAdminHome() {
         <div class="overflow-x-auto">
           <table class="data-table">
             <thead><tr>
-              <th>Product</th><th>User</th><th>Total</th><th>Damaged</th><th>Shift</th><th>Time</th>
+              <th>Product</th><th>User</th><th>Remaining</th><th>Damaged</th><th>Shift</th><th>Time</th>
             </tr></thead>
             <tbody>
               ${entries.slice(-8).reverse().map(e => `
@@ -497,7 +539,7 @@ function renderAdminStock() {
         <table class="data-table">
           <thead><tr>
             <th>Product</th><th>User</th><th>Opening</th><th>Received</th>
-            <th>Damaged</th><th>Stock Out</th><th>Closing</th><th>Total</th><th>Variance</th>
+            <th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th>
             <th>Shift</th><th>Date</th><th>Time</th><th></th>
           </tr></thead>
           <tbody id="as-tbody"></tbody>
@@ -538,8 +580,8 @@ function renderAdminStockTable() {
       <td>${e.userName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
+      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono">${e.closing}</td>
       <td class="mono font-600 text-white">${e.total}</td>
       <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
@@ -764,8 +806,8 @@ function renderAdminAudit() {
         <table class="data-table">
           <thead><tr>
             <th>Date</th><th>Shift</th><th>User</th><th>Product</th>
-            <th>Opening</th><th>Received</th><th>Damaged</th><th>Stock Out</th><th>Closing</th>
-            <th>Total</th><th>Variance</th><th>Time</th>
+            <th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th>
+            <th>Remaining</th><th>Variance</th><th>Time</th>
           </tr></thead>
           <tbody id="aud-tbody"></tbody>
           <tfoot id="aud-tfoot"></tfoot>
@@ -824,8 +866,8 @@ function renderAuditTable() {
       <td class="font-500 text-white">${e.productName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
+      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono">${e.closing}</td>
       <td class="mono font-600 text-white">${e.total}</td>
       <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
@@ -839,8 +881,8 @@ function renderAuditTable() {
       <td colspan="4" class="px-4 py-3 text-amber-400 text-xs uppercase">Totals (${rows.length} records)</td>
       <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
       <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
-      <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
       <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
+      <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
       <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
       <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
       <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
@@ -889,9 +931,9 @@ function clearAuditFilters() {
 function exportAuditCSV() {
   const rows = getAuditFiltered();
   if (!rows.length) { showToast('No data to export', 'warn'); return; }
-  const headers = ['Date', 'Shift', 'User', 'Product', 'Opening Stock', 'Received Stock', 'Damaged Stock', 'Stock Out', 'Closing Stock', 'Total Stock', 'Variance', 'Time'];
+  const headers = ['Date', 'Shift', 'User', 'Product', 'Opening Stock', 'Received Stock', 'Stock Out', 'Damaged Stock', 'Closing Stock', 'Remaining Stock', 'Variance', 'Time'];
   const csv = [headers.join(','), ...rows.map(e =>
-    [e.date, e.shift, `"${e.userName}"`, `"${e.productName}"`, e.opening, e.received, e.damaged, e.disbursed || 0, e.closing, e.total, e.variance, e.time].join(',')
+    [e.date, e.shift, `"${e.userName}"`, `"${e.productName}"`, e.opening, e.received, e.disbursed || 0, e.damaged, e.closing, e.total, e.variance, e.time].join(',')
   )].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -1128,6 +1170,7 @@ function renderUserDashboard() {
 
   return `
   <div class="stagger space-y-6">
+    ${getLowStockHTML()}
     <!-- Welcome + Shift -->
     <div class="glass rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
       <div class="flex-1">
@@ -1153,7 +1196,7 @@ function renderUserDashboard() {
       </div>
       <div class="glass rounded-xl p-4 text-center">
         <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + Number(e.total || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1">Total Stock</div>
+        <div class="text-xs text-slate-500 mt-1">Remaining Stock</div>
       </div>
     </div>
 
@@ -1193,29 +1236,29 @@ function renderUserDashboard() {
           <input id="f-received" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
-        <!-- Damaged -->
-        <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged Stock</label>
-          <input id="f-damaged" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
-        </div>
-
         <!-- Stock Out -->
         <div>
           <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Out / Disbursed</label>
           <input id="f-disbursed" type="text" inputmode="numeric" class="form-input border-brand/20 shadow-inner" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
+        <!-- Damaged -->
+        <div>
+          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged Stock</label>
+          <input id="f-damaged" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
+        </div>
+
         <!-- Closing -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock (Auto) *</label>
-          <input id="f-closing" type="text" class="form-input opacity-75 lg:col-span-1" placeholder="0" readonly />
+          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock *</label>
+          <input id="f-closing" type="text" inputmode="numeric" class="form-input lg:col-span-1" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Auto calc display -->
         <div class="glass rounded-xl p-4 flex flex-col justify-center">
           <div class="text-xs text-slate-500 uppercase tracking-wide mb-2 font-600">Auto Calculated</div>
           <div class="flex justify-between items-center mb-1">
-            <span class="text-xs text-slate-400">Total Stock:</span>
+            <span class="text-xs text-slate-400">Remaining Stock:</span>
             <span id="calc-total" class="mono font-700 text-white">—</span>
           </div>
           <div class="flex justify-between items-center">
@@ -1251,15 +1294,15 @@ function renderUserDashboard() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table">
-          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Damaged</th><th>Closing</th><th>Total</th><th>Variance</th><th>Time</th></tr></thead>
+          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Time</th><th></th></tr></thead>
           <tbody>
             ${today.slice(-5).reverse().map(e => `
             <tr>
               <td class="font-500 text-white">${e.productName}</td>
               <td class="mono">${e.opening}</td>
               <td class="mono">${e.received}</td>
-              <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
               <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
+              <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
               <td class="mono">${e.closing}</td>
               <td class="mono font-600 text-white">${e.total}</td>
               <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
@@ -1290,6 +1333,7 @@ function editEntry(id) {
   document.getElementById('f-received').value = e.received;
   document.getElementById('f-damaged').value = e.damaged;
   document.getElementById('f-disbursed').value = e.disbursed || 0;
+  document.getElementById('f-closing').value = e.closing;
   
   updateUnit(); // Refresh unit hint
   calcStock();  // Refresh calculations
@@ -1337,23 +1381,29 @@ function calcStock() {
   const damaged = Number(document.getElementById('f-damaged').value) || 0;
   const disbursed = Number(document.getElementById('f-disbursed').value) || 0;
 
-  // Closing = opening + received − damaged - disbursed
-  const total = opening + received - damaged - disbursed;
-
-  const closingEl = document.getElementById('f-closing');
-  if (closingEl) closingEl.value = total >= 0 ? total : 0;
-
-  const closing = total >= 0 ? total : 0;
-  const variance = 0;
+  // Remaining = opening + received − damaged - disbursed
+  const remaining = opening + received - damaged - disbursed;
+  
+  const closingInput = document.getElementById('f-closing').value;
+  const closing = closingInput !== '' ? Number(closingInput) : null;
+  const variance = closing !== null ? closing - remaining : null;
 
   const totEl = document.getElementById('calc-total');
   const varEl = document.getElementById('calc-variance');
-  if (totEl) { totEl.textContent = total >= 0 ? total : '—'; }
+  if (totEl) { totEl.textContent = remaining >= 0 ? remaining : '—'; }
   if (varEl) {
-    if (closing >= 0 && (opening > 0 || received > 0)) {
-      varEl.textContent = '✓ 0';
-      varEl.className = 'mono font-700 text-green-400';
-    } else { varEl.textContent = '—'; varEl.className = 'mono font-700 text-slate-400'; }
+    if (variance !== null) {
+      if (variance === 0) {
+        varEl.textContent = '✓ 0';
+        varEl.className = 'mono font-700 text-green-400';
+      } else {
+        varEl.textContent = variance > 0 ? `+${variance}` : variance;
+        varEl.className = 'mono font-700 text-amber-400';
+      }
+    } else {
+      varEl.textContent = '—';
+      varEl.className = 'mono font-700 text-slate-400';
+    }
   }
 }
 
@@ -1383,6 +1433,7 @@ function saveEntry() {
   // Validation
   if (!productId) { showToast('Please select a product', 'error'); productEl.focus(); return; }
   if (document.getElementById('f-opening').value === '') { showToast('Opening stock is required', 'error'); return; }
+  if (document.getElementById('f-closing').value === '') { showToast('Closing stock is required', 'error'); return; }
 
   const products = LS.products();
   const product = products.find(p => p.id === productId);
@@ -1405,7 +1456,7 @@ function saveEntry() {
   if (damaged + disbursed > opening + received) { showToast('Damage + Outcast cannot exceed total available stock', 'error'); return; }
 
   const total = opening + received - damaged - disbursed;
-  const variance = 0;
+  const variance = closing - total;
 
   if (editingEntryId) {
     // Update existing
@@ -1474,7 +1525,7 @@ function renderUserEntries() {
         <table class="data-table">
           <thead><tr>
             <th>Date</th><th>Product</th><th>Opening</th><th>Received</th>
-            <th>Damaged</th><th>Stock Out</th><th>Closing</th><th>Total</th><th>Variance</th><th>Shift</th><th>Time</th>
+            <th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Shift</th><th>Time</th>
           </tr></thead>
           <tbody id="ue-tbody"></tbody>
         </table>
@@ -1512,8 +1563,8 @@ function renderUserEntriesTable() {
       <td class="font-500 text-white">${e.productName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
+      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono">${e.closing}</td>
       <td class="mono font-600 text-white">${e.total}</td>
       <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400 font-600' : ''}">${e.variance}</td>
