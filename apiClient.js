@@ -3,7 +3,7 @@
  * Centralized fetch logic for the Node.js / PostgreSQL backend.
  */
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://stockflow-dmc.onrender.com/api';
 
 const API = {
   // Get token helper
