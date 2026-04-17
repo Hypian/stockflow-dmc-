@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: stockflow-backend
+    env: node
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    autoDeploy: true
+    disk: 512
+    instanceCount: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
