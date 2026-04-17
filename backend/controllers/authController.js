@@ -4,9 +4,14 @@ const { query } = require('../config/db');
 const { logAudit } = require('../services/auditService');
 
 // Helper to generate JWT
+const getTokenExpiry = () => {
+  const expiry = (process.env.JWT_EXPIRES_IN || '8h').toString().trim();
+  return expiry === '' ? '8h' : expiry;
+};
+
 const generateToken = (id, role, username) => {
   return jwt.sign({ id, role, username }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
+    expiresIn: getTokenExpiry(),
   });
 };
 
