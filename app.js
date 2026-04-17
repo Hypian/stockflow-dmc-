@@ -4,27 +4,31 @@
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const USERS = [
-  { id: 'admin', username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Pegy', avatar: 'RP' },
-  { id: 'john', username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
-  { id: 'binama', username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
+  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Pegy', avatar: 'RP' },
+  { id: 2, username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
+  { id: 3, username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
 ];
 
 const DEFAULT_PRODUCTS = [];
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
-let sidebarCollapsed = false;
+let sessionShift = null;  // Shift at login time - preserved across accidental logouts
 let confirmCallback = null;
 let editingEntryId = null;
+// ── IN-MEMORY DB STATE (Loaded from API) ──────────────────────────────────
+let db_products = [];
+let db_entries = [];
+let db_audit_logs = [];
 
-// ── LOCALSTORAGE HELPERS ─────────────────────────────────────────────────────
+// ── LOCALSTORAGE HELPERS (Legacy/Config only) ────────────────────────────────
 const LS = {
   get: (k, def = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-  products: () => LS.get('sf_products_final', DEFAULT_PRODUCTS),
-  entries: () => LS.get('sf_entries_final', []),
-  saveProducts: p => LS.set('sf_products_final', p),
-  saveEntries: e => LS.set('sf_entries_final', e),
+  products: () => db_products,
+  entries: () => db_entries,
+  saveProducts: () => {}, // Handled directly via API calls now
+  saveEntries: () => {}, // Handled directly via API calls now
 };
 
 // ── SHIFT SYSTEM ─────────────────────────────────────────────────────────────
@@ -77,27 +81,59 @@ function togglePass() {
   eye.className = inp.type === 'password' ? 'fa-solid fa-eye text-sm' : 'fa-solid fa-eye-slash text-sm';
 }
 
-function doLogin() {
+async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
-  const user = USERS.find(x => x.username === u && x.password === p);
-  if (!user) { showToast('Invalid username or password', 'error'); shakeInput(); return; }
-  const today = todayISO();
-  const sessionKey = `sf_login_${user.id}_${today}`;
-  let loginTime = LS.get(sessionKey);
-
-  if (!loginTime) {
-    loginTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    LS.set(sessionKey, loginTime);
+  
+  if (!u || !p) {
+    showToast('Please enter both username and password', 'error');
+    shakeInput();
+    return;
   }
 
-  currentUser = { ...user, loginTime };
-  document.getElementById('login-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
-  buildSidebar();
-  startClock();
-  navigateTo(user.role === 'admin' ? 'admin-home' : 'user-dashboard');
-  showToast(`Welcome back, ${user.name.split(' ')[0]}! 👋`, 'success');
+  const btn = document.querySelector('#login-screen button.btn-primary');
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Authenticating...';
+  btn.disabled = true;
+
+  try {
+    const data = await API.login(u, p);
+    const now = new Date();
+    const shift = getCurrentShift(now);
+    
+    currentUser = { 
+      ...data, 
+      loginTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      loginDate: todayISO()
+    };
+    sessionShift = shift;  // Store shift at login
+    
+    LS.set('sf_current_session', currentUser);
+    LS.set('sf_session_shift', shift);  // Persist shift for accidental logout recovery
+    
+    // Fetch data before letting them in
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Data...';
+    try {
+      db_products = await API.request('/inventory/products', 'GET');
+      db_entries = await API.getEntries();
+    } catch(err) {
+      console.error(err);
+      // We continue even if empty, to not block login completely
+    }
+
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+    buildSidebar();
+    startClock();
+    navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
+    showToast(`Welcome back, ${currentUser.name.split(' ')[0]}! 👋`, 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+    shakeInput();
+  } finally {
+    btn.innerHTML = orgHtml;
+    btn.disabled = false;
+  }
 }
 
 function shakeInput() {
@@ -115,22 +151,16 @@ function confirmLogout() {
   if (currentUser.role === 'admin') {
     showConfirm('Sign Out', 'Are you sure you want to sign out?', () => doLogout(), 'fa-arrow-right-from-bracket', 'rgba(245,158,11,0.1)', '#fbbf24');
   } else {
-    showConfirm(
-      'Close Shift',
-      'This will generate your shift report. You can then choose to sign out. Continue?',
-      () => {
-        printUserReport();
-        setTimeout(() => {
-          showConfirm('Finalize Sign Out', 'Shift report generated. Do you want to sign out now?', () => doLogout(), 'fa-arrow-right-from-bracket', 'rgba(245,158,11,0.1)', '#fbbf24');
-        }, 600);
-      },
-      'fa-print', 'rgba(245,158,11,0.1)', '#fbbf24'
-    );
+    showReportOptions('logout');
   }
 }
 function doLogout() {
   setTimeout(() => {
+    API.logout(); // Clear token over API wrapper
+    localStorage.removeItem('sf_current_session'); // Clear session metadata
+    localStorage.removeItem('sf_session_shift');  // Clear shift tracking
     currentUser = null;
+    sessionShift = null;
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('login-user').value = '';
@@ -139,25 +169,79 @@ function doLogout() {
 }
 
 // ── PRINT REPORT ─────────────────────────────────────────────────────────────
-function printUserReport() {
-  const entries = LS.entries().filter(e => e.userId === currentUser.id);
-  const today = entries.filter(e => e.date === todayISO());
+function showReportOptions(context = 'normal') {
+  const title = context === 'logout' ? 'End Shift & Logout' : 'Shift Report';
+  const sub = context === 'logout' ? 'Select an option to generate your report before signing out.' : 'Generate your current shift report below.';
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-xl font-800 text-white">${title}</h3>
+        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-sm text-slate-400 mb-6">${sub}</p>
+      
+      <div class="grid grid-cols-1 gap-3">
+        <button onclick="generateShiftReport('print', '${context}')" class="btn btn-primary justify-center py-4 text-base glow-amber">
+          <i class="fa-solid fa-print text-lg"></i> <span>Generate & Print PDF</span>
+        </button>
+        <button onclick="generateShiftReport('csv', '${context}')" class="btn btn-secondary justify-center py-4 text-base">
+          <i class="fa-solid fa-file-csv text-lg text-brand"></i> <span>Download CSV Report</span>
+        </button>
+      </div>
+      
+      <div class="mt-6 pt-6 border-t border-white/5 flex gap-3">
+        <button onclick="closeModal()" class="btn btn-ghost flex-1 justify-center">Cancel</button>
+        ${context === 'logout' ? `<button onclick="doLogout()" class="btn btn-danger flex-1 justify-center">Exit Without Report</button>` : ''}
+      </div>
+    </div>`;
+  openModal();
+}
+
+function generateShiftReport(type, context = 'normal') {
+  const entries = db_entries.filter(e => e.userId === currentUser.id && e.date === todayISO());
+
+  if (entries.length === 0) {
+    showToast('No entries recorded for today yet.', 'warn');
+    return;
+  }
+
+  if (type === 'print') {
+    printShiftReport(entries);
+  } else {
+    downloadShiftCSV(entries);
+  }
+
+  closeModal();
+
+  if (context === 'logout' || true) {
+    setTimeout(() => {
+      showConfirm(
+        'Shift Report Completed',
+        'Your report has been generated. Would you like to sign out of the system now?',
+        () => doLogout(),
+        'fa-arrow-right-from-bracket', 'rgba(245,158,11,0.1)', '#fbbf24'
+      );
+    }, 1000);
+  }
+}
+
+function printShiftReport(today) {
   const area = document.getElementById('print-area');
-  const shift = getCurrentShift();
   const now = new Date();
 
   const rows = today.map(e => `
     <tr>
-      <td>${e.productName}</td>
-      <td>${e.opening}</td>
-      <td>${e.received}</td>
-      <td>${e.disbursed || 0}</td>
-      <td>${e.damaged}</td>
-      <td>${e.closing}</td>
-      <td>${e.total}</td>
-      <td>${e.variance !== 0 ? `⚠ ${e.variance}` : '✓ 0'}</td>
-      <td>${e.time}</td>
-      <td>${e.shift}</td>
+      <td style="padding:10px;border:1px solid #ddd;font-weight:600;">${e.productName}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.opening}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.received}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;color:#b45309;">${e.disbursed || 0}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;color:#ef4444;">${e.damaged}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.closing}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;">${e.total}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.variance !== 0 ? `⚠ ${e.variance}` : '✓ 0'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-size:8pt;color:#666;">${e.time}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;text-transform:capitalize;">${e.shift}</td>
     </tr>`).join('');
 
   const totalDamaged = today.reduce((s, e) => s + Number(e.damaged), 0);
@@ -165,63 +249,91 @@ function printUserReport() {
   const totalStock = today.reduce((s, e) => s + Number(e.total), 0);
 
   area.innerHTML = `
-    <div class="print-section" style="font-family:Arial,sans-serif;">
-      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px;">
+    <div class="print-section" style="font-family:'Sora',Arial,sans-serif; max-width:1000px; margin:0 auto; color:#111;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #111;padding-bottom:20px;margin-bottom:24px;">
         <div>
-          <h1 style="margin:0;font-size:22pt;font-weight:900;letter-spacing:-0.5px;">StockFlow</h1>
-          <p style="margin:0;font-size:9pt;color:#666;">Inventory Management System</p>
+          <h1 style="margin:0;font-size:28pt;font-weight:900;letter-spacing:-1px;text-transform:uppercase;">StockFlow</h1>
+          <p style="margin:0;font-size:10pt;color:#555;font-weight:500;">PREMIUM INVENTORY MANAGEMENT SYSTEM</p>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:14pt;font-weight:700;">SESSION STOCK REPORT</div>
-          <div style="font-size:9pt;color:#333;">Printed: ${now.toLocaleString()}</div>
+          <div style="font-size:16pt;font-weight:800;color:#000;">DAILY SHIFT REPORT</div>
+          <div style="font-size:9pt;color:#444;margin-top:4px;">Generation Date: <strong>${now.toLocaleString('en-GB')}</strong></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;background:#f9f9f9;padding:12px;border-radius:6px;">
-        <div><div style="font-size:8pt;color:#666;font-weight:700;text-transform:uppercase;">Staff Member</div><div style="font-size:11pt;font-weight:600;">${currentUser.name}</div></div>
-        <div><div style="font-size:8pt;color:#666;font-weight:700;text-transform:uppercase;">Date</div><div style="font-size:11pt;font-weight:600;">${now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div></div>
-        <div><div style="font-size:8pt;color:#666;font-weight:700;text-transform:uppercase;">Shift Timing</div><div style="font-size:11pt;font-weight:600;">Login: ${currentUser.loginTime} — Closed: ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:30px;background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-radius:12px;">
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Responsible Staff</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${currentUser.name}</div></div>
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Report Date</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</div></div>
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Shift Period</div><div style="font-size:11pt;font-weight:700;color:#0f172a;">${getShiftLabel(sessionShift || getCurrentShift())}</div></div>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:9pt;">
+
+      <table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:30px;">
         <thead>
-          <tr style="background:#111;color:#fff;">
-            <th style="padding:8px;text-align:left;border:1px solid #ddd;">Product Name</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Opening Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Received Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Stock Out</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Damaged Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Closing Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Remaining Stock</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Variance</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Time</th>
-            <th style="padding:8px;text-align:center;border:1px solid #ddd;">Shift</th>
+          <tr style="background:#1e293b;color:#fff;">
+            <th style="padding:12px 10px;text-align:left;border:1px solid #334155;">Product Description</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Opening</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Received</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Stock Out</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Damaged</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Closing</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Remaining</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Variance</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Time</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Shift</th>
           </tr>
         </thead>
         <tbody>
-          ${rows || '<tr><td colspan="9" style="text-align:center;padding:12px;color:#666;">No entries for this session</td></tr>'}
+          ${rows}
         </tbody>
-        <tfoot>
-          <tr style="background:#f5f5f5;font-weight:700;">
-            <td style="padding:8px;border:1px solid #ddd;">TOTALS</td>
-            <td colspan="2" style="border:1px solid #ddd;"></td>
-            <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalDisbursed}</td>
-            <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalDamaged}</td>
-            <td style="border:1px solid #ddd;"></td>
-            <td style="padding:8px;text-align:center;border:1px solid #ddd;">${totalStock}</td>
-            <td colspan="3" style="border:1px solid #ddd;"></td>
-          </tr>
-        </tfoot>
       </table>
-      <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;padding-top:12px;border-top:1px solid #ccc;">
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Staff Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${currentUser.name}</div></div>
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Supervisor Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">___________________</div></div>
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Date & Stamp</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${now.toLocaleDateString('en-GB')}</div></div>
+
+      <div style="margin-top:60px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:50px;">
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;"></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">STAFF: ${currentUser.name.toUpperCase()}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;"></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">SUPERVISOR SIGNATURE</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:24pt;opacity:0.1;"><i class="fa-solid fa-stamp"></i></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">OFFICIAL STAMP & DATE</div>
+        </div>
+      </div>
+      
+      <div style="margin-top:80px;text-align:center;font-size:8pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;">
+        This is an official document generated by StockFlow Inventory System. Path: Reports/Shift/${todayISO().replace(/-/g, '/')}/${currentUser.id}
       </div>
     </div>`;
   window.print();
 }
 
+function downloadShiftCSV(today) {
+  const headers = ['Product', 'Opening', 'Received', 'Stock Out', 'Damaged', 'Closing', 'Remaining', 'Variance', 'Time', 'Shift'];
+  const rows = today.map(e => [
+    e.productName, e.opening, e.received, e.disbursed || 0, e.damaged, e.closing, e.total, e.variance, e.time, e.shift
+  ]);
+
+  let csvContent = "data:text/csv;charset=utf-8,"
+    + headers.join(",") + "\n"
+    + rows.map(r => r.map(v => typeof v === 'string' && v.includes(',') ? `"${v}"` : v).join(",")).join("\n");
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `StockFlow_Report_${currentUser.name.replace(/\s+/g, '_')}_${todayISO()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('CSV Report Downloaded', 'success');
+}
+
 // ── DATE HELPER ───────────────────────────────────────────────────────────────
-function todayISO() { return new Date().toISOString().split('T')[0]; }
+function todayISO() { 
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -272,7 +384,30 @@ function closeSidebar() {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
-function navigateTo(page) {
+async function navigateTo(page) {
+  // Refresh data from API before rendering certain pages
+  const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
+  
+  if (needsRefresh.includes(page)) {
+    try {
+      // Parallel fetch for speed
+      const [entries, products] = await Promise.all([
+        API.getEntries(),
+        API.getProducts()
+      ]);
+      db_entries = entries;
+      db_products = products;
+      
+      // Specialized fetch for audit logs
+      if (page === 'admin-audit') {
+        db_audit_logs = await API.getAuditLogs();
+      }
+    } catch (e) {
+      console.warn("Failed to sync data with backend:", e);
+      // We still proceed with current memory data
+    }
+  }
+
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navEl = document.getElementById('nav-' + page);
@@ -282,7 +417,7 @@ function navigateTo(page) {
     'admin-home': ['Dashboard', 'Overview of your inventory system'],
     'admin-stock': ['Stock Entries', 'All recorded stock activity'],
     'admin-products': ['Product Management', 'Manage your product catalogue'],
-    'admin-audit': ['Audit & Reports', 'Investigate historical stock data'],
+    'admin-audit': ['Audit Logs', 'Secure audit trail of all system changes'],
     'admin-analytics': ['Analytics', 'Visual insights and trends'],
     'user-dashboard': ['Stock Entry', 'Record today\'s stock activity'],
     'user-entries': ['My Entries', 'Your recorded stock history'],
@@ -301,7 +436,7 @@ function navigateTo(page) {
     div.innerHTML = renderPage(page);
     container.appendChild(div);
     initPage(page);
-  }, 120);
+  }, 50);
 
   closeSidebar();
 }
@@ -321,25 +456,37 @@ function renderPage(page) {
 }
 
 function getLowStockHTML() {
-  const entries = LS.entries();
-  const products = LS.products().filter(p => p.active);
+  const entries = db_entries;
+  const products = db_products.filter(p => p.active);
   const lowStock = [];
-  
+
   products.forEach(p => {
-    const latest = entries.filter(e => e.productId === p.id).sort((a, b) => {
+    const pEntries = entries.filter(e => e.productId === p.id);
+    if (pEntries.length === 0) return;
+
+    const latest = [...pEntries].sort((a, b) => {
       const dateCmp = b.date.localeCompare(a.date);
       return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
     })[0];
-    
-    // Low stock threshold: <= 20
-    const stock = latest ? Number(latest.closing) : 0;
-    if (stock <= 20) {
-      lowStock.push({ name: p.name, stock, unit: p.unit });
+
+    // Low stock logic: < 35% of historical maximum closing stock
+    const currentStock = latest ? Number(latest.closing) : 0;
+    const maxHistorical = Math.max(...pEntries.map(e => Number(e.closing)));
+
+    // Threshold is 35%. 
+    const threshold = maxHistorical * 0.35;
+
+    // Only alert if: 
+    // 1. We have a historical max > 0
+    // 2. Current stock is <= threshold
+    // 3. Current stock is less than the max (prevents alert right after first record)
+    if (maxHistorical > 0 && currentStock <= threshold && currentStock < maxHistorical) {
+      lowStock.push({ name: p.name, stock: currentStock, unit: p.unit, pct: Math.round((currentStock / maxHistorical) * 100) });
     }
   });
 
   if (lowStock.length === 0) return '';
-  
+
   lowStock.sort((a, b) => a.stock - b.stock);
 
   return `
@@ -350,12 +497,16 @@ function getLowStockHTML() {
           <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
         </div>
         <div>
-          <div class="font-700 text-red-400 text-sm">Low Stock Alert</div>
-          <div class="text-xs text-red-400/80">The following items are running out (< 20 items)</div>
+          <div class="font-700 text-red-400 text-sm">Low Stock Alert (Threshold: 35%)</div>
+          <div class="text-xs text-red-400/80">The following items are below 35% of their historical maximum stock level.</div>
         </div>
       </div>
       <div class="flex flex-wrap gap-2 relative z-10">
-        ${lowStock.map(p => `<span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm">${p.name}: <strong class="text-white ml-1">${p.stock}</strong> <span class="text-xs uppercase opacity-70 ml-1">${p.unit}</span></span>`).join('')}
+        ${lowStock.map(p => `
+          <span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
+            ${p.name}: <strong class="text-white ml-1">${p.stock}</strong> 
+            <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded-md bg-red-500/20 font-700">${p.pct}%</span>
+          </span>`).join('')}
       </div>
     </div>
   `;
@@ -365,8 +516,8 @@ function getLowStockHTML() {
 //  ADMIN HOME
 // ════════════════════════════════════════════════════════════════════════════
 function renderAdminHome() {
-  const entries = LS.entries();
-  const products = LS.products();
+  const entries = db_entries;
+  const products = db_products;
   const today = entries.filter(e => e.date === todayISO());
   const totalDmg = entries.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const todayDmg = today.reduce((s, e) => s + Number(e.damaged || 0), 0);
@@ -557,10 +708,10 @@ function renderAdminStockTable() {
   const user = (document.getElementById('as-user') || {}).value || '';
   const shift = (document.getElementById('as-shift') || {}).value || '';
 
-  let rows = LS.entries().filter(e => {
+  let rows = db_entries.filter(e => {
     if (search && !`${e.productName} ${e.userName}`.toLowerCase().includes(search)) return false;
     if (date && e.date !== date) return false;
-    if (user && e.userId !== user) return false;
+    if (user && e.userId !== Number(user)) return false;
     if (shift && e.shift !== shift) return false;
     return true;
   }).reverse();
@@ -596,11 +747,16 @@ function renderAdminStockTable() {
 }
 
 function deleteEntry(id) {
-  showConfirm('Delete Entry', 'This will permanently remove this stock entry.', () => {
-    const entries = LS.entries().filter(e => e.id !== id);
-    LS.saveEntries(entries);
-    renderAdminStockTable();
-    showToast('Entry deleted', 'success');
+  showConfirm('Delete Entry', 'This will permanently remove this stock entry.', async () => {
+    try {
+      await API.deleteEntry(id);
+      // Refresh entries from backend to get latest data
+      db_entries = await API.getEntries();
+      renderAdminStockTable();
+      showToast('Entry deleted', 'success');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
   });
 }
 
@@ -639,8 +795,8 @@ function renderAdminProducts() {
 
 function renderProductTable() {
   const search = (document.getElementById('prod-search') || {}).value?.toLowerCase() || '';
-  const products = LS.products().filter(p => !search || p.name.toLowerCase().includes(search));
-  const entries = LS.entries();
+  const products = db_products.filter(p => !search || p.name.toLowerCase().includes(search));
+  const entries = db_entries;
 
   const tbody = document.getElementById('prod-tbody');
   if (!tbody) return;
@@ -663,9 +819,13 @@ function renderProductTable() {
 }
 
 function showProductModal(id = null) {
-  const products = LS.products();
-  const p = id ? products.find(x => x.id === id) : null;
-  const units = ['pcs', 'cartons', 'kg', 'liters', 'bags', 'boxes', 'bottles', 'rolls', 'qty'];
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can manage products', 'error');
+    return;
+  }
+  const products = db_products;
+  const p = id ? products.find(x => String(x.id) === String(id)) : null;
+  const units = ['pcs', 'cartons', 'kgs', 'ltrs', 'bags', 'boxes', 'bottles', 'rolls', 'qty'];
 
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
@@ -699,55 +859,108 @@ function showProductModal(id = null) {
   openModal();
 }
 
-function saveProduct(id) {
+async function saveProduct(id) {
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can save products', 'error');
+    return;
+  }
   const rawName = document.getElementById('pm-name').value.trim();
   if (!rawName) { showToast('Product name is required', 'error'); return; }
-  const name = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+  const normalizedName = rawName.replace(/\s+/g, ' ').trim();
+  const name = normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1).toLowerCase();
   const unit = document.getElementById('pm-unit').value;
   const active = document.getElementById('pm-active').checked;
-
-  let products = LS.products();
-  if (id) {
-    products = products.map(p => p.id === id ? { ...p, name, unit, active } : p);
-    showToast('Product updated', 'success');
-  } else {
-    products.push({ id: `p${Date.now()}`, name, unit, active });
-    showToast('Product added', 'success');
+  const existingProduct = db_products.find(p => p.name.toLowerCase() === name.toLowerCase());
+  if (!id && existingProduct) {
+    showToast('A product with this name already exists and will be merged', 'info');
   }
-  LS.saveProducts(products);
-  closeModal();
-  renderProductTable();
+
+  const btn = document.querySelector('.modal-box .btn-primary');
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+
+  try {
+    const data = { name, unit, active };
+    const savedProduct = await API.saveProduct(id, data);
+    
+    if (id) {
+      db_products = db_products.map(p => String(p.id) === String(id) ? savedProduct : p);
+      showToast('Product updated', 'success');
+    } else {
+      const existingIndex = db_products.findIndex(p => String(p.id) === String(savedProduct.id));
+      if (existingIndex > -1) {
+        db_products[existingIndex] = savedProduct;
+        showToast('Duplicate product merged with existing record', 'info');
+      } else {
+        db_products.push(savedProduct);
+        showToast('Product added', 'success');
+      }
+    }
+    
+    closeModal();
+    renderProductTable();
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    btn.innerHTML = orgHtml;
+    btn.disabled = false;
+  }
 }
 
-function toggleProductStatus(id) {
-  const products = LS.products().map(p => p.id === id ? { ...p, active: !p.active } : p);
-  LS.saveProducts(products);
-  renderProductTable();
-  showToast('Product status updated', 'info');
+async function toggleProductStatus(id) {
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can modify products', 'error');
+    return;
+  }
+  const p = db_products.find(x => String(x.id) === String(id));
+  if (!p) return;
+  
+  try {
+    const updated = await API.saveProduct(id, { ...p, active: !p.active });
+    db_products = db_products.map(x => String(x.id) === String(id) ? updated : x);
+    renderProductTable();
+    showToast('Product status updated', 'info');
+  } catch (error) {
+    showToast(error.message, 'error');
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can delete products', 'error');
+    return;
+  }
+  }
 }
 
-function deleteProduct(id) {
-  const entries = LS.entries().filter(e => e.productId === id);
+async function deleteProduct(id) {
+  const productEntries = db_entries.filter(e => String(e.product_id) === String(id));
+  
   showConfirm('Delete Product',
-    entries.length ? `This product has ${entries.length} entries. Delete anyway?` : 'This action cannot be undone.',
-    () => {
-      LS.saveProducts(LS.products().filter(p => p.id !== id));
-      renderProductTable();
-      showToast('Product deleted', 'success');
+    productEntries.length ? `This product has ${productEntries.length} associated entries. Deleting it will remove those entries. Continue?` : 'This action cannot be undone.',
+    async () => {
+      try {
+        await API.deleteProduct(id);
+        db_products = await API.getProducts();
+        renderProductTable();
+        showToast('Product deleted', 'success');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
     });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 //  ADMIN AUDIT
 // ════════════════════════════════════════════════════════════════════════════
+// ── ADMIN AUDIT
 function renderAdminAudit() {
+  const mode = LS.get('sf_audit_mode', 'entries'); // entries or logs
+
   return `
   <div class="space-y-4">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
         <div class="section-title">Audit & Reports</div>
-        <div class="section-sub">Investigate historical stock data</div>
+        <div class="section-sub">Investigate historical stock data and system changes</div>
       </div>
       <div class="flex gap-2">
         <button onclick="exportAuditCSV()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
@@ -755,6 +968,27 @@ function renderAdminAudit() {
       </div>
     </div>
 
+    <!-- Toggle -->
+    <div class="flex p-1 bg-slate-800/50 rounded-lg w-fit border border-white/5">
+      <button onclick="setAuditMode('entries')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'entries' ? 'bg-brand text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+        Stock Entry History
+      </button>
+      <button onclick="setAuditMode('logs')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'logs' ? 'bg-brand text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+        System Audit Trail (New)
+      </button>
+    </div>
+
+    ${mode === 'entries' ? renderAuditEntriesView() : renderAuditLogsView()}
+  </div>`;
+}
+
+function setAuditMode(mode) {
+  LS.set('sf_audit_mode', mode);
+  navigateTo('admin-audit');
+}
+
+function renderAuditEntriesView() {
+  return `
     <!-- Filters -->
     <div class="glass rounded-xl p-4">
       <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -773,7 +1007,7 @@ function renderAdminAudit() {
           <label class="text-xs text-slate-500 mb-1 block">Product</label>
           <select id="aud-prod" class="form-input" onchange="renderAuditTable()">
             <option value="">All Products</option>
-            ${LS.products().map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+            ${db_products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -785,12 +1019,6 @@ function renderAdminAudit() {
           </select>
         </div>
       </div>
-      <div class="mt-3 flex gap-2">
-        <button onclick="setAuditRange('today')" class="btn btn-ghost btn-sm">Today</button>
-        <button onclick="setAuditRange('week')" class="btn btn-ghost btn-sm">This Week</button>
-        <button onclick="setAuditRange('month')" class="btn btn-ghost btn-sm">This Month</button>
-        <button onclick="clearAuditFilters()" class="btn btn-ghost btn-sm text-red-400">Clear</button>
-      </div>
     </div>
 
     <!-- Summary Cards -->
@@ -799,7 +1027,7 @@ function renderAdminAudit() {
     <!-- Table -->
     <div class="glass rounded-xl overflow-hidden">
       <div class="p-4 border-b border-white/5 flex items-center justify-between">
-        <div class="section-title">Audit Results</div>
+        <div class="section-title">Record History</div>
         <div id="aud-count" class="text-xs text-slate-500"></div>
       </div>
       <div class="overflow-x-auto">
@@ -813,9 +1041,50 @@ function renderAdminAudit() {
           <tfoot id="aud-tfoot"></tfoot>
         </table>
       </div>
-      <div id="aud-pagination" class="flex items-center justify-between p-4 border-t border-white/5"></div>
-    </div>
-  </div>`;
+    </div>`;
+}
+
+function renderAuditLogsView() {
+  return `
+    <div class="glass rounded-xl overflow-hidden">
+      <div class="p-4 border-b border-white/5 flex items-center justify-between">
+        <div>
+          <div class="section-title">System Audit Trail</div>
+          <div class="section-sub">Append-only log of every system modification</div>
+        </div>
+        <div class="text-xs text-slate-500 uppercase font-600">${db_audit_logs.length} Operations</div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>Timestamp</th><th>Staff</th><th>Action</th><th>Target</th><th>Changes (Old → New)</th><th>IP</th>
+          </tr></thead>
+          <tbody>
+            ${db_audit_logs.map(log => {
+              const actionClass = log.action === 'CREATE' ? 'text-green-400' : log.action === 'UPDATE' ? 'text-amber-400' : 'text-red-400';
+              const oldVal = log.old_values ? JSON.stringify(log.old_values) : '';
+              const newVal = log.new_values ? JSON.stringify(log.new_values) : '';
+              
+              return `
+                <tr>
+                  <td class="mono text-xs text-slate-400">${new Date(log.timestamp).toLocaleString('en-GB')}</td>
+                  <td class="font-600 text-white">${log.user_name || 'System'}</td>
+                  <td><span class="px-2 py-0.5 rounded text-[10px] font-800 bg-white/5 ${actionClass}">${log.action}</span></td>
+                  <td class="text-xs text-slate-400 capitalize">${log.table_name} #${log.record_id}</td>
+                  <td>
+                    <div class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap text-[10px] mono text-slate-500 cursor-help" title="Old: ${oldVal.replace(/"/g, '&quot;')}\n\nNew: ${newVal.replace(/"/g, '&quot;')}">
+                      ${log.action === 'DELETE' ? `<span class="text-red-400/50 line-through">${oldVal}</span>` :
+                        log.action === 'CREATE' ? `<span class="text-green-400">${newVal}</span>` :
+                        `<span class="text-slate-600">${oldVal}</span> → <span class="text-amber-400">${newVal}</span>`}
+                    </div>
+                  </td>
+                  <td class="mono text-[10px] text-slate-600">${log.ip_address || '—'}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="6" class="text-center text-slate-500 py-12">No system logs available yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 let audPage = 1; const audPerPage = 15;
@@ -825,10 +1094,10 @@ function getAuditFiltered() {
   const prod = (document.getElementById('aud-prod') || {}).value || '';
   const shift = (document.getElementById('aud-shift') || {}).value || '';
 
-  return LS.entries().filter(e => {
+  return db_entries.filter(e => {
     if (date && e.date !== date) return false;
-    if (user && e.userId !== user) return false;
-    if (prod && e.productId !== prod) return false;
+    if (user && e.userId !== Number(user)) return false;
+    if (prod && e.productId !== Number(prod)) return false;
     if (shift && e.shift !== shift) return false;
     return true;
   });
@@ -1009,8 +1278,8 @@ function printAuditReport() {
 //  ADMIN ANALYTICS
 // ════════════════════════════════════════════════════════════════════════════
 function renderAdminAnalytics() {
-  const entries = LS.entries();
-  const products = LS.products();
+  const entries = db_entries;
+  const products = db_products;
 
   // Group by date (last 7 days)
   const last7 = [];
@@ -1164,23 +1433,33 @@ function renderAdminAnalytics() {
 //  USER DASHBOARD (Stock Entry Form)
 // ════════════════════════════════════════════════════════════════════════════
 function renderUserDashboard() {
-  const products = LS.products().filter(p => p.active);
+  const products = db_products.filter(p => p.active);
   const shift = getCurrentShift();
-  const today = LS.entries().filter(e => e.userId === currentUser.id && e.date === todayISO());
+  const entries = db_entries;
+  const today = entries.filter(e => String(e.userId) === String(currentUser.id) && e.date === todayISO());
+
 
   return `
   <div class="stagger space-y-6">
     ${getLowStockHTML()}
     <!-- Welcome + Shift -->
-    <div class="glass rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+    <div class="glass rounded-xl p-5 flex flex-col lg:flex-row lg:items-center gap-6">
       <div class="flex-1">
         <div class="text-slate-400 text-sm">Welcome back,</div>
         <div class="text-xl font-700 text-white mt-0.5">${currentUser.name}</div>
         <div class="text-sm text-slate-500 mt-1">${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
       </div>
-      <div class="flex flex-col items-start sm:items-end gap-2">
-        ${getShiftBadgeHTML(shift)}
-        <div class="text-xs text-slate-500">${shift === 'morning' ? '08:00 – 18:00' : '18:00 – 08:00'}</div>
+      
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex flex-col items-start lg:items-end gap-1 px-4 border-l lg:border-l-0 lg:border-r border-white/10">
+          ${getShiftBadgeHTML(shift)}
+          <div class="text-xs text-slate-500">${shift === 'morning' ? '08:00 – 18:00' : '18:00 – 08:00'}</div>
+        </div>
+        
+        <button onclick="showReportOptions()" class="btn btn-primary h-12 px-6 glow-amber group">
+          <i class="fa-solid fa-clock-rotate-left mr-1 group-hover:rotate-[-45deg] transition-transform"></i>
+          <span>End Shift & Generate Report</span>
+        </button>
       </div>
     </div>
 
@@ -1251,7 +1530,7 @@ function renderUserDashboard() {
         <!-- Closing -->
         <div>
           <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock *</label>
-          <input id="f-closing" type="text" inputmode="numeric" class="form-input lg:col-span-1" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
+          <input id="f-closing" type="text" inputmode="numeric" class="form-input lg:col-span-1" placeholder="0" oninput="calcStock('closing')" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Auto calc display -->
@@ -1321,32 +1600,165 @@ function renderUserDashboard() {
 }
 
 function editEntry(id) {
-  const entries = LS.entries();
-  const e = entries.find(x => x.id === id);
+  const entries = db_entries;
+  const e = entries.find(x => String(x.id) === String(id));
   if (!e) return;
 
-  editingEntryId = id;
+  // Find previous entry's closing stock
+  const lastEntry = entries
+    .filter(entry => entry.productId === e.productId && entry.id !== id)
+    .sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
+    })[0];
   
-  // Fill form
-  document.getElementById('f-product').value = e.productId;
-  document.getElementById('f-opening').value = e.opening;
-  document.getElementById('f-received').value = e.received;
-  document.getElementById('f-damaged').value = e.damaged;
-  document.getElementById('f-disbursed').value = e.disbursed || 0;
-  document.getElementById('f-closing').value = e.closing;
+  const openingStock = lastEntry ? lastEntry.closing : e.opening;
   
-  updateUnit(); // Refresh unit hint
-  calcStock();  // Refresh calculations
+  document.getElementById('modal-content').innerHTML = `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-700 text-white">Edit Stock Entry</h3>
+        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <div class="space-y-4">
+        <!-- Product & Opening (Read-only) -->
+        <div class="glass rounded-xl p-4 bg-slate-800/50">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-600">Product</div>
+              <div class="text-white font-600">${e.productName}</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-600">Opening Stock (from previous)</div>
+              <div class="mono text-xl font-700 text-amber-400">${openingStock}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Fields -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Received</label>
+            <input id="em-received" type="text" inputmode="numeric" class="form-input" value="${e.received}" oninput="calcEditStock()" placeholder="0" />
+          </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Out</label>
+            <input id="em-disbursed" type="text" inputmode="numeric" class="form-input" value="${e.disbursed || 0}" oninput="calcEditStock()" placeholder="0" />
+          </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged</label>
+            <input id="em-damaged" type="text" inputmode="numeric" class="form-input" value="${e.damaged}" oninput="calcEditStock()" placeholder="0" />
+          </div>
+        </div>
+
+        <!-- Auto-calculated Results -->
+        <div class="glass rounded-xl p-4 border border-brand/30 bg-brand/10">
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Remaining Stock</div>
+              <div id="em-total" class="mono text-2xl font-700 text-white">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Closing</div>
+              <div id="em-closing" class="mono text-2xl font-700 text-brand">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Variance</div>
+              <div id="em-variance" class="mono text-2xl font-700 text-slate-400">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal()" class="btn btn-secondary flex-1 justify-center">Cancel</button>
+        <button onclick="saveEditEntry('${id}', ${openingStock})" class="btn btn-primary flex-1 justify-center">
+          <i class="fa-solid fa-check"></i> Save Changes
+        </button>
+      </div>
+    </div>`;
   
-  // Update button text
-  const btn = document.getElementById('save-btn');
-  if (btn) {
-    btn.innerHTML = `<i class="fa-solid fa-pen-to-square"></i> Update Entry`;
+  openModal();
+  calcEditStock();
+}
+
+function calcEditStock() {
+  const received = Number(document.getElementById('em-received')?.value || 0);
+  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
+  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
+  const openingEl = document.querySelector('[value*=""]');
+  
+  // Get opening from the modal display
+  const openingText = document.querySelector('.mono.text-xl.font-700.text-amber-400')?.textContent;
+  const opening = Number(openingText || 0);
+  
+  const expected = opening + received - damaged - disbursed;
+  const closing = expected >= 0 ? expected : 0;
+  const variance = closing - expected;
+
+  const totalEl = document.getElementById('em-total');
+  const closingEl = document.getElementById('em-closing');
+  const varEl = document.getElementById('em-variance');
+
+  if (totalEl) totalEl.textContent = expected >= 0 ? expected : '0';
+  if (closingEl) closingEl.textContent = closing;
+  if (varEl) {
+    if (variance === 0) {
+      varEl.textContent = '✓ 0';
+      varEl.className = 'mono text-2xl font-700 text-green-400';
+    } else {
+      varEl.textContent = variance > 0 ? `+${variance}` : variance;
+      varEl.className = 'mono text-2xl font-700 text-amber-400';
+    }
   }
-  
-  // Scroll to form
-  document.getElementById('f-product').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  showToast('Entry loaded for editing', 'info');
+}
+
+async function saveEditEntry(id, opening) {
+  const received = Number(document.getElementById('em-received')?.value || 0);
+  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
+  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
+  const closing = Number(document.getElementById('em-closing')?.textContent || 0);
+  const variance = closing - (opening + received - damaged - disbursed);
+
+  if (received < 0 || disbursed < 0 || damaged < 0) {
+    showToast('No negative values allowed', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('.modal-box button.btn-primary');
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+
+  try {
+    const entryData = {
+      opening,
+      received,
+      damaged,
+      disbursed,
+      closing,
+      variance
+    };
+
+    const entry = db_entries.find(e => String(e.id) === String(id));
+    const result = await API.updateEntry(id, entryData);
+    
+    db_entries = db_entries.map(e => String(e.id) === String(id) ? { 
+      ...result, 
+      productName: entry.productName, 
+      unit: entry.unit 
+    } : e);
+
+    closeModal();
+    navigateTo('user-dashboard');
+    showToast('Entry updated successfully', 'success');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    btn.innerHTML = orgHtml;
+    btn.disabled = false;
+  }
 }
 
 function updateUnit() {
@@ -1359,15 +1771,16 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    const entries = LS.entries();
-    // Find the absolute last entry for this product across all users/dates
+    const entries = db_entries;
     const lastEntry = entries.filter(e => e.productId === productId).sort((a, b) => {
       const dateCmp = b.date.localeCompare(a.date);
       return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
     })[0];
 
     if (lastEntry) {
-      openingInput.value = lastEntry.closing;
+      if (!openingInput.value) {
+        openingInput.value = lastEntry.closing;
+      }
     } else {
       openingInput.value = '';
     }
@@ -1375,34 +1788,38 @@ function updateUnit() {
   }
 }
 
-function calcStock() {
-  const opening = Number(document.getElementById('f-opening').value) || 0;
-  const received = Number(document.getElementById('f-received').value) || 0;
-  const damaged = Number(document.getElementById('f-damaged').value) || 0;
-  const disbursed = Number(document.getElementById('f-disbursed').value) || 0;
+function calcStock(source = 'auto') {
+  const opVal = document.getElementById('f-opening').value;
+  const reVal = document.getElementById('f-received').value;
+  const daVal = document.getElementById('f-damaged').value;
+  const diVal = document.getElementById('f-disbursed').value;
+  const clEl = document.getElementById('f-closing');
 
-  // Remaining = opening + received − damaged - disbursed
-  const remaining = opening + received - damaged - disbursed;
+  const opening = Number(opVal) || 0;
+  const received = Number(reVal) || 0;
+  const damaged = Number(daVal) || 0;
+  const disbursed = Number(diVal) || 0;
+
+  const expected = opening + received - damaged - disbursed;
   
-  const closingInput = document.getElementById('f-closing').value;
-  const closing = closingInput !== '' ? Number(closingInput) : null;
-  const variance = closing !== null ? closing - remaining : null;
+  if (source !== 'closing') {
+    clEl.value = expected >= 0 ? expected : 0;
+  }
+
+  const closing = Number(clEl.value) || 0;
+  const variance = closing - expected;
 
   const totEl = document.getElementById('calc-total');
   const varEl = document.getElementById('calc-variance');
-  if (totEl) { totEl.textContent = remaining >= 0 ? remaining : '—'; }
+
+  if (totEl) { totEl.textContent = expected >= 0 ? expected : '0'; }
   if (varEl) {
-    if (variance !== null) {
-      if (variance === 0) {
-        varEl.textContent = '✓ 0';
-        varEl.className = 'mono font-700 text-green-400';
-      } else {
-        varEl.textContent = variance > 0 ? `+${variance}` : variance;
-        varEl.className = 'mono font-700 text-amber-400';
-      }
+    if (variance === 0) {
+      varEl.textContent = '✓ 0';
+      varEl.className = 'mono font-700 text-green-400';
     } else {
-      varEl.textContent = '—';
-      varEl.className = 'mono font-700 text-slate-400';
+      varEl.textContent = variance > 0 ? `+${variance}` : variance;
+      varEl.className = 'mono font-700 text-amber-400';
     }
   }
 }
@@ -1421,7 +1838,7 @@ function clearForm() {
   updateUnit();
 }
 
-function saveEntry() {
+async function saveEntry() {
   const productEl = document.getElementById('f-product');
   const productId = productEl?.value;
   const opening = Number(document.getElementById('f-opening').value);
@@ -1430,65 +1847,98 @@ function saveEntry() {
   const disbursed = Number(document.getElementById('f-disbursed').value) || 0;
   const closing = Number(document.getElementById('f-closing').value);
 
-  // Validation
   if (!productId) { showToast('Please select a product', 'error'); productEl.focus(); return; }
   if (document.getElementById('f-opening').value === '') { showToast('Opening stock is required', 'error'); return; }
   if (document.getElementById('f-closing').value === '') { showToast('Closing stock is required', 'error'); return; }
 
-  const products = LS.products();
-  const product = products.find(p => p.id === productId);
-  const now = new Date();
-  const shift = getCurrentShift(now);
-  const today = todayISO();
-  let entries = LS.entries();
-
-  // Duplicate Check (only if not editing OR if changed product while editing)
-  if (!editingEntryId) {
-    const isDuplicate = entries.some(e => e.userId === currentUser.id && e.productId === productId && e.date === today && e.shift === shift);
-    if (isDuplicate) {
-      showToast(`You have already recorded an entry for ${product.name} in this shift.`, 'warn');
+    const products = db_products;
+    const product = products.find(p => String(p.id) === String(productId));
+    
+    if (!product) {
+      showToast('Selected product not found in database', 'error');
       return;
     }
+
+    const now = new Date();
+    const shift = getCurrentShift(now);
+    const today = todayISO();
+    
+    if (opening < 0 || received < 0 || damaged < 0 || disbursed < 0 || closing < 0) {
+      showToast('No negative values allowed', 'error');
+      return;
+    }
+
+    // Check for duplicate entry on same product today (unless editing)
+    if (!editingEntryId) {
+      const existingEntry = db_entries.find(e => 
+        String(e.userId) === String(currentUser.id) && 
+        String(e.productId) === String(productId) && 
+        e.date === today
+      );
+      if (existingEntry) {
+        showConfirm('Duplicate Entry Alert', 
+          `You already have an entry for ${product.name} today. Do you want to update it instead?`,
+          () => {
+            editingEntryId = existingEntry.id;
+            saveEntry();
+          },
+          'fa-exclamation-circle',
+          'rgba(245,158,11,0.1)',
+          '#fbbf24'
+        );
+        return;
+      }
+    }
+
+    const btn = document.getElementById('save-btn');
+    const orgHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    btn.disabled = true;
+
+    try {
+      const entryData = {
+        product_id: productId,
+        opening, received, damaged, disbursed, closing,
+        variance: closing - (opening + received - damaged - disbursed),
+        shift,
+        entry_date: today,
+        entry_time: now.toLocaleTimeString('en-GB')
+      };
+
+      let result;
+      if (editingEntryId) {
+        result = await API.updateEntry(editingEntryId, entryData);
+        db_entries = db_entries.map(e => String(e.id) === String(editingEntryId) ? { ...result, productName: product.name, unit: product.unit } : e);
+        showToast(`Entry updated for ${product.name}!`, 'success');
+      } else {
+        result = await API.createEntry(entryData);
+        db_entries.push({ ...result, productName: product.name, unit: product.unit });
+        showToast(`Entry saved for ${product.name}!`, 'success');
+      }
+
+      clearForm();
+      
+      // Refresh admin dashboard to show updated staff activity
+      try {
+        db_entries = await API.getEntries();
+        db_products = await API.getProducts();
+        
+        // If admin is currently viewing the dashboard, refresh it
+        const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
+        if (currentPage === 'admin-home') {
+          navigateTo('admin-home');
+        }
+      } catch (e) {
+        console.warn("Could not refresh dashboard data:", e);
+      }
+      
+      navigateTo('user-dashboard');
+    } catch (error) {
+      showToast(error.message, 'error');
+  } finally {
+    btn.innerHTML = orgHtml;
+    btn.disabled = false;
   }
-
-  // Value Validation
-  if (opening < 0 || received < 0 || damaged < 0 || disbursed < 0 || closing < 0) { showToast('No negative values allowed', 'error'); return; }
-  if (damaged + disbursed > opening + received) { showToast('Damage + Outcast cannot exceed total available stock', 'error'); return; }
-
-  const total = opening + received - damaged - disbursed;
-  const variance = closing - total;
-
-  if (editingEntryId) {
-    // Update existing
-    entries = entries.map(e => e.id === editingEntryId ? {
-      ...e, productId, productName: product.name, unit: product.unit,
-      opening, received, damaged, disbursed, closing, total, variance,
-      time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    } : e);
-    showToast(`Entry updated for ${product.name}!`, 'success');
-  } else {
-    // Create new
-    const entry = {
-      id: `e${Date.now()}`,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      productId,
-      productName: product.name,
-      unit: product.unit,
-      opening, received, damaged, disbursed, closing, total, variance,
-      shift,
-      date: today,
-      time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    };
-    entries.push(entry);
-    showToast(`Entry saved for ${product.name}!`, 'success');
-  }
-
-  LS.saveEntries(entries);
-  clearForm();
-
-  // Refresh today's table
-  navigateTo('user-dashboard');
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1541,7 +1991,7 @@ function renderUserEntriesTable() {
   const date = (document.getElementById('ue-date') || {}).value || '';
   const shift = (document.getElementById('ue-shift') || {}).value || '';
 
-  let rows = LS.entries().filter(e => {
+  let rows = db_entries.filter(e => {
     if (e.userId !== currentUser.id) return false;
     if (search && !e.productName.toLowerCase().includes(search)) return false;
     if (date && e.date !== date) return false;
@@ -1642,5 +2092,37 @@ function showToast(msg, type = 'info', duration = 3500) {
     <button onclick="this.parentElement.remove()" class="opacity-50 hover:opacity-100 transition-opacity ml-1"><i class="fa-solid fa-xmark text-xs"></i></button>`;
   container.appendChild(toast);
   setTimeout(() => { toast.classList.add('animate-toast-out'); setTimeout(() => toast.remove(), 300); }, duration);
+}
+
+// ── INITIALIZATION ──────────────────────────────────────────────────────────
+async function initApp() {
+  const session = LS.get('sf_current_session');
+  const token = API.getToken();
+  const savedShift = LS.get('sf_session_shift');
+  
+  if (session && session.id && token) {
+    currentUser = session;
+    sessionShift = savedShift;  // Restore shift from previous session
+    
+    try {
+      db_products = await API.request('/inventory/products', 'GET');
+      db_entries = await API.getEntries();
+    } catch (e) {
+      console.warn("Failed to connect to backend on initial load. " + e.message);
+    }
+
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-shell').classList.remove('hidden');
+    buildSidebar();
+    startClock();
+    navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
+  }
+}
+
+// Start app
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
 }
 
