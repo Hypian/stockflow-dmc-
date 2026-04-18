@@ -42,14 +42,22 @@ function startProductPolling(page) {
     try {
       const freshProducts = await API.getProducts();
 
-      // Check if products changed
-      const productsChanged = JSON.stringify(freshProducts) !== JSON.stringify(db_products);
+      // Check if products changed (using length and simple id+active check for speed)
+      let productsChanged = freshProducts.length !== db_products.length;
+      if (!productsChanged) {
+        for (let i = 0; i < freshProducts.length; i++) {
+          if (freshProducts[i].id !== db_products[i].id || freshProducts[i].active !== db_products[i].active) {
+            productsChanged = true;
+            break;
+          }
+        }
+      }
 
       if (productsChanged) {
         db_products = freshProducts;
 
-        // Re-render the current page
-        const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
+        // Re-render the current page components if needed
+        const currentPage = activePage;
         if (currentPage === 'admin-products') renderProductTable();
         if (currentPage === 'user-dashboard') {
           // Update form dropdown
@@ -93,22 +101,31 @@ function getShiftBadgeHTML(shift) {
 }
 
 // ── CLOCK ────────────────────────────────────────────────────────────────────
+let lastClockTime = '';
 function startClock() {
+  const clockEl = document.getElementById('clock-display');
+  const shiftBadgeEl = document.getElementById('header-shift-badge');
+  const sidebarShiftEl = document.getElementById('sidebar-shift');
+
   function tick() {
     const now = new Date();
     const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const date = now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
-    const el = document.getElementById('clock-display');
-    if (el) el.textContent = `${date} · ${time}`;
-    const shift = getCurrentShift(now);
-    const hdr = document.getElementById('header-shift-badge');
-    if (hdr) hdr.innerHTML = getShiftBadgeHTML(shift);
-    updateSidebarShift(shift);
+    const fullTime = `${date} · ${time}`;
+
+    if (fullTime !== lastClockTime) {
+      if (clockEl) clockEl.textContent = fullTime;
+      lastClockTime = fullTime;
+
+      const shift = getCurrentShift(now);
+      if (shiftBadgeEl) shiftBadgeEl.innerHTML = getShiftBadgeHTML(shift);
+      updateSidebarShift(shift, sidebarShiftEl);
+    }
   }
   tick(); setInterval(tick, 1000);
 }
-function updateSidebarShift(shift) {
-  const el = document.getElementById('sidebar-shift');
+
+function updateSidebarShift(shift, el) {
   if (!el) return;
   const dotCls = shift === 'morning' ? 'shift-morning' : 'shift-night';
   const label = shift === 'morning' ? 'Morning Shift' : 'Night Shift';
@@ -118,6 +135,20 @@ function updateSidebarShift(shift) {
     <div class="sidebar-logo-text"><div class="text-xs font-600 text-white">${label}</div>
     <div class="text-xs text-slate-500">${time}</div></div></div>`;
 }
+
+// ── DEBOUNCE UTILITY ─────────────────────────────────────────────────────────
+function debounce(fn, wait) {
+  let timeout;
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
+// Global debounced search functions
+const debouncedAdminStockTable = debounce(() => renderAdminStockTable(), 300);
+const debouncedProductTable = debounce(() => renderProductTable(), 300);
+const debouncedUserEntriesTable = debounce(() => renderUserEntriesTable(), 300);
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 function togglePass() {
@@ -435,32 +466,15 @@ function closeSidebar() {
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+let activePage = '';
+
 async function navigateTo(page) {
+  if (activePage === page) return;
+  activePage = page;
+
   // Stop any existing polling before navigating
   stopProductPolling();
-
-  // Refresh data from API before rendering certain pages
-  const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
-
-  if (needsRefresh.includes(page)) {
-    try {
-      // Parallel fetch for speed
-      const [entries, products] = await Promise.all([
-        API.getEntries(),
-        API.getProducts()
-      ]);
-      db_entries = entries;
-      db_products = products;
-
-      // Specialized fetch for audit logs
-      if (page === 'admin-audit') {
-        db_audit_logs = await API.getAuditLogs();
-      }
-    } catch (e) {
-      console.warn("Failed to sync data with backend:", e);
-      // We still proceed with current memory data
-    }
-  }
 
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -477,21 +491,56 @@ async function navigateTo(page) {
     'user-entries': ['My Entries', 'Your recorded stock history'],
   };
   const [title, sub] = titles[page] || [page, ''];
-  document.getElementById('page-title').textContent = title;
-  document.getElementById('page-sub').textContent = sub;
+  const titleEl = document.getElementById('page-title');
+  const subEl = document.getElementById('page-sub');
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = sub;
 
   const container = document.getElementById('pages');
-  container.innerHTML = '<div class="flex items-center justify-center py-16"><div class="w-8 h-8 border-2 border-brand/30 border-t-brand rounded-full animate-spin"></div></div>';
+  
+  // RENDER IMMEDIATELY with current in-memory data
+  container.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'animate-fade-in';
+  div.innerHTML = renderPage(page);
+  container.appendChild(div);
+  initPage(page);
+  startProductPolling(page);
 
-  setTimeout(() => {
-    container.innerHTML = '';
-    const div = document.createElement('div');
-    div.className = 'animate-fade-in';
-    div.innerHTML = renderPage(page);
-    container.appendChild(div);
-    initPage(page);
-    startProductPolling(page);
-  }, 50);
+  // BACKGROUND SYNC: Refresh data from API
+  const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
+  if (needsRefresh.includes(page)) {
+    try {
+      const isInitialFetch = db_entries.length === 0 && db_products.length === 0;
+      
+      // Parallel fetch for speed
+      const promises = [API.getEntries(), API.getProducts()];
+      if (page === 'admin-audit') promises.push(API.getAuditLogs());
+      
+      const [entries, products, auditLogs] = await Promise.all(promises);
+      
+      // Check if data actually changed to avoid redundant re-renders
+      const entriesChanged = JSON.stringify(entries) !== JSON.stringify(db_entries);
+      const productsChanged = JSON.stringify(products) !== JSON.stringify(db_products);
+      
+      db_entries = entries;
+      db_products = products;
+      if (auditLogs) db_audit_logs = auditLogs;
+
+      // Only re-render if we are still on the same page and data actually changed
+      if (activePage === page && (entriesChanged || productsChanged || isInitialFetch)) {
+        console.log(`Background sync complete for ${page}, refreshing view...`);
+        const freshDiv = document.createElement('div');
+        freshDiv.className = 'animate-fade-in';
+        freshDiv.innerHTML = renderPage(page);
+        container.innerHTML = '';
+        container.appendChild(freshDiv);
+        initPage(page);
+      }
+    } catch (e) {
+      console.warn("Background sync failed:", e);
+    }
+  }
 
   closeSidebar();
 }
@@ -515,26 +564,27 @@ function getLowStockHTML() {
   const products = db_products.filter(p => p.active);
   const lowStock = [];
 
-  products.forEach(p => {
-    const pEntries = entries.filter(e => e.productId === p.id);
-    if (pEntries.length === 0) return;
+  // Index entries by productId for O(E) pre-processing
+  const entriesByProduct = {};
+  entries.forEach(e => {
+    if (!entriesByProduct[e.productId]) entriesByProduct[e.productId] = [];
+    entriesByProduct[e.productId].push(e);
+  });
 
+  products.forEach(p => {
+    const pEntries = entriesByProduct[p.id];
+    if (!pEntries || pEntries.length === 0) return;
+
+    // Find latest entry (pEntries is mostly chronological from API)
     const latest = [...pEntries].sort((a, b) => {
       const dateCmp = b.date.localeCompare(a.date);
       return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
     })[0];
 
-    // Low stock logic: < 35% of historical maximum closing stock
     const currentStock = latest ? Number(latest.closing) : 0;
     const maxHistorical = Math.max(...pEntries.map(e => Number(e.closing)));
-
-    // Threshold is 35%. 
     const threshold = maxHistorical * 0.35;
 
-    // Only alert if: 
-    // 1. We have a historical max > 0
-    // 2. Current stock is <= threshold
-    // 3. Current stock is less than the max (prevents alert right after first record)
     if (maxHistorical > 0 && currentStock <= threshold && currentStock < maxHistorical) {
       lowStock.push({ name: p.name, stock: currentStock, unit: p.unit, pct: Math.round((currentStock / maxHistorical) * 100) });
     }
@@ -720,7 +770,7 @@ function renderAdminStock() {
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="search-wrap">
           <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
-          <input id="as-search" type="text" class="form-input" placeholder="Search product, user…" oninput="renderAdminStockTable()" />
+          <input id="as-search" type="text" class="form-input" placeholder="Search product, user…" oninput="debouncedAdminStockTable()" />
         </div>
         <input id="as-date" type="date" class="form-input" onchange="renderAdminStockTable()" />
         <select id="as-user" class="form-input" onchange="renderAdminStockTable()">
@@ -835,7 +885,7 @@ function renderAdminProducts() {
       <div class="p-4 border-b border-white/5">
         <div class="search-wrap">
           <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
-          <input id="prod-search" type="text" class="form-input" placeholder="Search products…" oninput="renderProductTable()" />
+          <input id="prod-search" type="text" class="form-input" placeholder="Search products…" oninput="debouncedProductTable()" />
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -853,10 +903,14 @@ function renderProductTable() {
   const products = db_products.filter(p => !search || p.name.toLowerCase().includes(search));
   const entries = db_entries;
 
+  // Optim optimization: Pre-calculate counts to avoid O(P * E)
+  const productCounts = {};
+  entries.forEach(e => { productCounts[e.productId] = (productCounts[e.productId] || 0) + 1; });
+
   const tbody = document.getElementById('prod-tbody');
   if (!tbody) return;
   tbody.innerHTML = products.map((p, i) => {
-    const cnt = entries.filter(e => e.productId === p.id).length;
+    const cnt = productCounts[p.id] || 0;
     return `
     <tr>
       <td class="text-slate-500 mono text-xs">${i + 1}</td>
@@ -1357,12 +1411,24 @@ function renderAdminAnalytics() {
   const entries = db_entries;
   const products = db_products;
 
+  // Pre-process: Group entries by date and product for faster lookup
+  const entriesByDate = {};
+  const entriesByProduct = {};
+  
+  entries.forEach(e => {
+    if (!entriesByDate[e.date]) entriesByDate[e.date] = [];
+    entriesByDate[e.date].push(e);
+    
+    if (!entriesByProduct[e.productId]) entriesByProduct[e.productId] = [];
+    entriesByProduct[e.productId].push(e);
+  });
+
   // Group by date (last 7 days)
   const last7 = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const iso = d.toISOString().split('T')[0];
-    const dayEntries = entries.filter(e => e.date === iso);
+    const dayEntries = entriesByDate[iso] || [];
     last7.push({
       date: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
       total: dayEntries.reduce((s, e) => s + Number(e.total || 0), 0),
@@ -1373,11 +1439,14 @@ function renderAdminAnalytics() {
   const maxTotal = Math.max(...last7.map(d => d.total)) || 1;
 
   // Top products by entries
-  const prodStats = products.map(p => ({
-    name: p.name, unit: p.unit,
-    count: entries.filter(e => e.productId === p.id).length,
-    damaged: entries.filter(e => e.productId === p.id).reduce((s, e) => s + Number(e.damaged || 0), 0)
-  })).sort((a, b) => b.count - a.count).slice(0, 5);
+  const prodStats = products.map(p => {
+    const pEntries = entriesByProduct[p.id] || [];
+    return {
+      name: p.name, unit: p.unit,
+      count: pEntries.length,
+      damaged: pEntries.reduce((s, e) => s + Number(e.damaged || 0), 0)
+    };
+  }).sort((a, b) => b.count - a.count).slice(0, 5);
 
   return `
   <div class="stagger space-y-6">
@@ -2028,7 +2097,7 @@ function renderUserEntries() {
       <div class="grid sm:grid-cols-3 gap-3">
         <div class="search-wrap">
           <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
-          <input id="ue-search" type="text" class="form-input" placeholder="Search products…" oninput="renderUserEntriesTable()" />
+          <input id="ue-search" type="text" class="form-input" placeholder="Search products…" oninput="debouncedUserEntriesTable()" />
         </div>
         <input id="ue-date" type="date" class="form-input" onchange="renderUserEntriesTable()" />
         <select id="ue-shift" class="form-input" onchange="renderUserEntriesTable()">
