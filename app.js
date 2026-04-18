@@ -34,20 +34,20 @@ function stopProductPolling() {
 
 function startProductPolling(page) {
   stopProductPolling();
-  
+
   const pagesWithProducts = ['admin-products', 'user-dashboard', 'admin-stock'];
   if (!pagesWithProducts.includes(page)) return;
-  
+
   currentPollingInterval = setInterval(async () => {
     try {
       const freshProducts = await API.getProducts();
-      
+
       // Check if products changed
       const productsChanged = JSON.stringify(freshProducts) !== JSON.stringify(db_products);
-      
+
       if (productsChanged) {
         db_products = freshProducts;
-        
+
         // Re-render the current page
         const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
         if (currentPage === 'admin-products') renderProductTable();
@@ -73,8 +73,8 @@ const LS = {
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
   products: () => db_products,
   entries: () => db_entries,
-  saveProducts: () => {}, // Handled directly via API calls now
-  saveEntries: () => {}, // Handled directly via API calls now
+  saveProducts: () => { }, // Handled directly via API calls now
+  saveEntries: () => { }, // Handled directly via API calls now
 };
 
 // ── SHIFT SYSTEM ─────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ function togglePass() {
 async function doLogin() {
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
-  
+
   if (!u || !p) {
     showToast('Please enter both username and password', 'error');
     shakeInput();
@@ -146,8 +146,8 @@ async function doLogin() {
     const data = await API.login(u, p);
     const now = new Date();
     const shift = getCurrentShift(now);
-    
-    currentUser = { 
+
+    currentUser = {
       id: data.id || null,
       name: data.name || 'User',
       username: data.username || '',
@@ -157,16 +157,16 @@ async function doLogin() {
       loginDate: todayISO()
     };
     sessionShift = shift;  // Store shift at login
-    
+
     LS.set('sf_current_session', currentUser);
     LS.set('sf_session_shift', shift);  // Persist shift for accidental logout recovery
-    
+
     // Fetch data before letting them in
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Data...';
     try {
       db_products = await API.request('/inventory/products', 'GET');
       db_entries = await API.getEntries();
-    } catch(err) {
+    } catch (err) {
       console.error(err);
       // We continue even if empty, to not block login completely
     }
@@ -381,7 +381,7 @@ function downloadShiftCSV(today) {
 }
 
 // ── DATE HELPER ───────────────────────────────────────────────────────────────
-function todayISO() { 
+function todayISO() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
@@ -438,10 +438,10 @@ function closeSidebar() {
 async function navigateTo(page) {
   // Stop any existing polling before navigating
   stopProductPolling();
-  
+
   // Refresh data from API before rendering certain pages
   const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
-  
+
   if (needsRefresh.includes(page)) {
     try {
       // Parallel fetch for speed
@@ -451,7 +451,7 @@ async function navigateTo(page) {
       ]);
       db_entries = entries;
       db_products = products;
-      
+
       // Specialized fetch for audit logs
       if (page === 'admin-audit') {
         db_audit_logs = await API.getAuditLogs();
@@ -938,7 +938,7 @@ async function saveProduct(id) {
   try {
     const data = { name, unit, active };
     const savedProduct = await API.saveProduct(id, data);
-    
+
     if (id) {
       db_products = db_products.map(p => String(p.id) === String(id) ? savedProduct : p);
       showToast('Product updated', 'success');
@@ -952,7 +952,7 @@ async function saveProduct(id) {
         showToast('Product added', 'success');
       }
     }
-    
+
     closeModal();
     renderProductTable();
   } catch (error) {
@@ -970,7 +970,7 @@ async function toggleProductStatus(id) {
   }
   const p = db_products.find(x => String(x.id) === String(id));
   if (!p) return;
-  
+
   try {
     const updated = await API.saveProduct(id, { ...p, active: !p.active });
     db_products = db_products.map(x => String(x.id) === String(id) ? updated : x);
@@ -978,16 +978,16 @@ async function toggleProductStatus(id) {
     showToast('Product status updated', 'info');
   } catch (error) {
     showToast(error.message, 'error');
-  if (currentUser.role !== 'admin') {
-    showToast('Only administrators can delete products', 'error');
-    return;
-  }
+    if (currentUser.role !== 'admin') {
+      showToast('Only administrators can delete products', 'error');
+      return;
+    }
   }
 }
 
 async function deleteProduct(id) {
   const productEntries = db_entries.filter(e => String(e.product_id) === String(id));
-  
+
   showConfirm('Delete Product',
     productEntries.length ? `This product has ${productEntries.length} associated entries. Deleting it will remove those entries. Continue?` : 'This action cannot be undone.',
     async () => {
@@ -1123,11 +1123,11 @@ function renderAuditLogsView() {
           </tr></thead>
           <tbody>
             ${db_audit_logs.map(log => {
-              const actionClass = log.action === 'CREATE' ? 'text-green-400' : log.action === 'UPDATE' ? 'text-amber-400' : 'text-red-400';
-              const oldVal = log.old_values ? JSON.stringify(log.old_values) : '';
-              const newVal = log.new_values ? JSON.stringify(log.new_values) : '';
-              
-              return `
+    const actionClass = log.action === 'CREATE' ? 'text-green-400' : log.action === 'UPDATE' ? 'text-amber-400' : 'text-red-400';
+    const oldVal = log.old_values ? JSON.stringify(log.old_values) : '';
+    const newVal = log.new_values ? JSON.stringify(log.new_values) : '';
+
+    return `
                 <tr>
                   <td class="mono text-xs text-slate-400">${new Date(log.timestamp).toLocaleString('en-GB')}</td>
                   <td class="font-600 text-white">${log.user_name || 'System'}</td>
@@ -1136,13 +1136,13 @@ function renderAuditLogsView() {
                   <td>
                     <div class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap text-[10px] mono text-slate-500 cursor-help" title="Old: ${oldVal.replace(/"/g, '&quot;')}\n\nNew: ${newVal.replace(/"/g, '&quot;')}">
                       ${log.action === 'DELETE' ? `<span class="text-red-400/50 line-through">${oldVal}</span>` :
-                        log.action === 'CREATE' ? `<span class="text-green-400">${newVal}</span>` :
-                        `<span class="text-slate-600">${oldVal}</span> → <span class="text-amber-400">${newVal}</span>`}
+        log.action === 'CREATE' ? `<span class="text-green-400">${newVal}</span>` :
+          `<span class="text-slate-600">${oldVal}</span> → <span class="text-amber-400">${newVal}</span>`}
                     </div>
                   </td>
                   <td class="mono text-[10px] text-slate-600">${log.ip_address || '—'}</td>
                 </tr>`;
-            }).join('') || '<tr><td colspan="6" class="text-center text-slate-500 py-12">No system logs available yet.</td></tr>'}
+  }).join('') || '<tr><td colspan="6" class="text-center text-slate-500 py-12">No system logs available yet.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1176,26 +1176,26 @@ function clearAuditFilters() {
   renderAuditTable();
 }
 
-  // Summary cards
-  const sumEl = document.getElementById('aud-summary');
-  if (sumEl) {
-    const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
-    const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
-    const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
-    const products = [...new Set(rows.map(e => e.productId))].length;
-    sumEl.innerHTML = `
+// Summary cards
+const sumEl = document.getElementById('aud-summary');
+if (sumEl) {
+  const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
+  const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
+  const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
+  const products = [...new Set(rows.map(e => e.productId))].length;
+  sumEl.innerHTML = `
       ${miniStat('fa-boxes-stacked', 'Total Stock', totalStock, 'text-blue-400')}
       ${miniStat('fa-triangle-exclamation', 'Total Damaged', totalDmg, 'text-red-400')}
       ${miniStat('fa-scale-unbalanced', 'Total Variance', totalVar, 'text-amber-400')}
       ${miniStat('fa-box-open', 'Distinct Products', products, 'text-green-400')}`;
-  }
+}
 
-  const totalPages = Math.ceil(rows.length / audPerPage) || 1;
-  if (audPage > totalPages) audPage = 1;
-  const paged = rows.slice((audPage - 1) * audPerPage, audPage * audPerPage);
+const totalPages = Math.ceil(rows.length / audPerPage) || 1;
+if (audPage > totalPages) audPage = 1;
+const paged = rows.slice((audPage - 1) * audPerPage, audPage * audPerPage);
 
-  const tbody = document.getElementById('aud-tbody');
-  if (tbody) tbody.innerHTML = paged.map(e => `
+const tbody = document.getElementById('aud-tbody');
+if (tbody) tbody.innerHTML = paged.map(e => `
     <tr>
       <td class="mono text-xs font-600">${e.date}</td>
       <td>${getShiftBadgeHTML(e.shift)}</td>
@@ -1211,10 +1211,10 @@ function clearAuditFilters() {
       <td class="mono text-xs text-slate-500">${e.time}</td>
     </tr>`).join('') || '<tr><td colspan="12" class="text-center text-slate-500 py-10">No records match filters</td></tr>';
 
-  // Footer totals
-  const tfoot = document.getElementById('aud-tfoot');
-  if (tfoot && rows.length) {
-    tfoot.innerHTML = `<tr style="background:rgba(245,158,11,.06);font-weight:700;">
+// Footer totals
+const tfoot = document.getElementById('aud-tfoot');
+if (tfoot && rows.length) {
+  tfoot.innerHTML = `<tr style="background:rgba(245,158,11,.06);font-weight:700;">
       <td colspan="4" class="px-4 py-3 text-amber-400 text-xs uppercase">Totals (${rows.length} records)</td>
       <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
       <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
@@ -1225,11 +1225,11 @@ function clearAuditFilters() {
       <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
       <td></td>
     </tr>`;
-  }
-
-  const pg = document.getElementById('aud-pagination');
-  if (pg) pg.innerHTML = paginationHTML(audPage, totalPages, 'audPage', 'renderAuditTable');
 }
+
+const pg = document.getElementById('aud-pagination');
+if (pg) pg.innerHTML = paginationHTML(audPage, totalPages, 'audPage', 'renderAuditTable');
+
 
 function miniStat(icon, label, val, cls) {
   return `<div class="glass rounded-xl p-4">
@@ -1679,9 +1679,9 @@ function editEntry(id) {
       const dateCmp = b.date.localeCompare(a.date);
       return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
     })[0];
-  
+
   const openingStock = lastEntry ? lastEntry.closing : e.opening;
-  
+
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
       <div class="flex items-center justify-between mb-5">
@@ -1746,7 +1746,7 @@ function editEntry(id) {
         </button>
       </div>
     </div>`;
-  
+
   openModal();
   calcEditStock();
 }
@@ -1756,11 +1756,11 @@ function calcEditStock() {
   const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
   const damaged = Number(document.getElementById('em-damaged')?.value || 0);
   const openingEl = document.querySelector('[value*=""]');
-  
+
   // Get opening from the modal display
   const openingText = document.querySelector('.mono.text-xl.font-700.text-amber-400')?.textContent;
   const opening = Number(openingText || 0);
-  
+
   const expected = opening + received - damaged - disbursed;
   const closing = expected >= 0 ? expected : 0;
   const variance = closing - expected;
@@ -1811,11 +1811,11 @@ async function saveEditEntry(id, opening) {
 
     const entry = db_entries.find(e => String(e.id) === String(id));
     const result = await API.updateEntry(id, entryData);
-    
-    db_entries = db_entries.map(e => String(e.id) === String(id) ? { 
-      ...result, 
-      productName: entry.productName, 
-      unit: entry.unit 
+
+    db_entries = db_entries.map(e => String(e.id) === String(id) ? {
+      ...result,
+      productName: entry.productName,
+      unit: entry.unit
     } : e);
 
     closeModal();
@@ -1869,7 +1869,7 @@ function calcStock(source = 'auto') {
   const disbursed = Number(diVal) || 0;
 
   const expected = opening + received - damaged - disbursed;
-  
+
   if (source !== 'closing') {
     clEl.value = expected >= 0 ? expected : 0;
   }
@@ -1919,90 +1919,90 @@ async function saveEntry() {
   if (document.getElementById('f-opening').value === '') { showToast('Opening stock is required', 'error'); return; }
   if (document.getElementById('f-closing').value === '') { showToast('Closing stock is required', 'error'); return; }
 
-    const products = db_products;
-    const product = products.find(p => String(p.id) === String(productId));
-    
-    if (!product) {
-      showToast('Selected product not found in database', 'error');
-      return;
-    }
+  const products = db_products;
+  const product = products.find(p => String(p.id) === String(productId));
 
-    const now = new Date();
-    const shift = getCurrentShift(now);
-    const today = todayISO();
-    
-    if (opening < 0 || received < 0 || damaged < 0 || disbursed < 0 || closing < 0) {
-      showToast('No negative values allowed', 'error');
-      return;
-    }
+  if (!product) {
+    showToast('Selected product not found in database', 'error');
+    return;
+  }
 
-    // Check for duplicate entry on same product today (unless editing)
-    if (!editingEntryId) {
-      const existingEntry = db_entries.find(e => 
-        String(e.userId) === String(currentUser.id) && 
-        String(e.productId) === String(productId) && 
-        e.date === today
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const today = todayISO();
+
+  if (opening < 0 || received < 0 || damaged < 0 || disbursed < 0 || closing < 0) {
+    showToast('No negative values allowed', 'error');
+    return;
+  }
+
+  // Check for duplicate entry on same product today (unless editing)
+  if (!editingEntryId) {
+    const existingEntry = db_entries.find(e =>
+      String(e.userId) === String(currentUser.id) &&
+      String(e.productId) === String(productId) &&
+      e.date === today
+    );
+    if (existingEntry) {
+      showConfirm('Duplicate Entry Alert',
+        `You already have an entry for ${product.name} today. Do you want to update it instead?`,
+        () => {
+          editingEntryId = existingEntry.id;
+          saveEntry();
+        },
+        'fa-exclamation-circle',
+        'rgba(245,158,11,0.1)',
+        '#fbbf24'
       );
-      if (existingEntry) {
-        showConfirm('Duplicate Entry Alert', 
-          `You already have an entry for ${product.name} today. Do you want to update it instead?`,
-          () => {
-            editingEntryId = existingEntry.id;
-            saveEntry();
-          },
-          'fa-exclamation-circle',
-          'rgba(245,158,11,0.1)',
-          '#fbbf24'
-        );
-        return;
-      }
+      return;
+    }
+  }
+
+  const btn = document.getElementById('save-btn');
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+
+  try {
+    const entryData = {
+      product_id: productId,
+      opening, received, damaged, disbursed, closing,
+      variance: closing - (opening + received - damaged - disbursed),
+      shift,
+      entry_date: today,
+      entry_time: now.toLocaleTimeString('en-GB')
+    };
+
+    let result;
+    if (editingEntryId) {
+      result = await API.updateEntry(editingEntryId, entryData);
+      db_entries = db_entries.map(e => String(e.id) === String(editingEntryId) ? { ...result, productName: product.name, unit: product.unit } : e);
+      showToast(`Entry updated for ${product.name}!`, 'success');
+    } else {
+      result = await API.createEntry(entryData);
+      db_entries.push({ ...result, productName: product.name, unit: product.unit });
+      showToast(`Entry saved for ${product.name}!`, 'success');
     }
 
-    const btn = document.getElementById('save-btn');
-    const orgHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-    btn.disabled = true;
+    clearForm();
 
+    // Refresh admin dashboard to show updated staff activity
     try {
-      const entryData = {
-        product_id: productId,
-        opening, received, damaged, disbursed, closing,
-        variance: closing - (opening + received - damaged - disbursed),
-        shift,
-        entry_date: today,
-        entry_time: now.toLocaleTimeString('en-GB')
-      };
+      db_entries = await API.getEntries();
+      db_products = await API.getProducts();
 
-      let result;
-      if (editingEntryId) {
-        result = await API.updateEntry(editingEntryId, entryData);
-        db_entries = db_entries.map(e => String(e.id) === String(editingEntryId) ? { ...result, productName: product.name, unit: product.unit } : e);
-        showToast(`Entry updated for ${product.name}!`, 'success');
-      } else {
-        result = await API.createEntry(entryData);
-        db_entries.push({ ...result, productName: product.name, unit: product.unit });
-        showToast(`Entry saved for ${product.name}!`, 'success');
+      // If admin is currently viewing the dashboard, refresh it
+      const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
+      if (currentPage === 'admin-home') {
+        navigateTo('admin-home');
       }
+    } catch (e) {
+      console.warn("Could not refresh dashboard data:", e);
+    }
 
-      clearForm();
-      
-      // Refresh admin dashboard to show updated staff activity
-      try {
-        db_entries = await API.getEntries();
-        db_products = await API.getProducts();
-        
-        // If admin is currently viewing the dashboard, refresh it
-        const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
-        if (currentPage === 'admin-home') {
-          navigateTo('admin-home');
-        }
-      } catch (e) {
-        console.warn("Could not refresh dashboard data:", e);
-      }
-      
-      navigateTo('user-dashboard');
-    } catch (error) {
-      showToast(error.message, 'error');
+    navigateTo('user-dashboard');
+  } catch (error) {
+    showToast(error.message, 'error');
   } finally {
     btn.innerHTML = orgHtml;
     btn.disabled = false;
@@ -2167,15 +2167,15 @@ async function initApp() {
   const session = LS.get('sf_current_session');
   const token = API.getToken();
   const savedShift = LS.get('sf_session_shift');
-  
+
   // Hide loading splash
   const splash = document.getElementById('loading-splash');
   if (splash) splash.classList.add('hidden');
-  
+
   if (session && session.id && token) {
     currentUser = session;
     sessionShift = savedShift;  // Restore shift from previous session
-    
+
     try {
       db_products = await API.request('/inventory/products', 'GET');
       db_entries = await API.getEntries();
