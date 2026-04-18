@@ -21,6 +21,52 @@ let db_products = [];
 let db_entries = [];
 let db_audit_logs = [];
 
+// ── AUTO-POLLING ──────────────────────────────────────────────────────────
+let currentPollingInterval = null;
+const POLL_INTERVAL = 30000; // 30 seconds
+
+function stopProductPolling() {
+  if (currentPollingInterval) {
+    clearInterval(currentPollingInterval);
+    currentPollingInterval = null;
+  }
+}
+
+function startProductPolling(page) {
+  stopProductPolling();
+  
+  const pagesWithProducts = ['admin-products', 'user-dashboard', 'admin-stock'];
+  if (!pagesWithProducts.includes(page)) return;
+  
+  currentPollingInterval = setInterval(async () => {
+    try {
+      const freshProducts = await API.getProducts();
+      
+      // Check if products changed
+      const productsChanged = JSON.stringify(freshProducts) !== JSON.stringify(db_products);
+      
+      if (productsChanged) {
+        db_products = freshProducts;
+        
+        // Re-render the current page
+        const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
+        if (currentPage === 'admin-products') renderProductTable();
+        if (currentPage === 'user-dashboard') {
+          // Update form dropdown
+          const productEl = document.getElementById('f-product');
+          if (productEl) {
+            const selected = productEl.value;
+            productEl.innerHTML = `<option value="">Select a product</option>${db_products.filter(p => p.active).map(p => `<option value="${p.id}">${p.name}</option>`).join('')}`;
+            productEl.value = selected;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Product polling error:", e);
+    }
+  }, POLL_INTERVAL);
+}
+
 // ── LOCALSTORAGE HELPERS (Legacy/Config only) ────────────────────────────────
 const LS = {
   get: (k, def = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
@@ -159,6 +205,7 @@ function confirmLogout() {
   }
 }
 function doLogout() {
+  stopProductPolling();  // Stop polling before logging out
   setTimeout(() => {
     API.logout(); // Clear token over API wrapper
     localStorage.removeItem('sf_current_session'); // Clear session metadata
@@ -389,6 +436,9 @@ function closeSidebar() {
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 async function navigateTo(page) {
+  // Stop any existing polling before navigating
+  stopProductPolling();
+  
   // Refresh data from API before rendering certain pages
   const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
   
@@ -440,6 +490,7 @@ async function navigateTo(page) {
     div.innerHTML = renderPage(page);
     container.appendChild(div);
     initPage(page);
+    startProductPolling(page);
   }, 50);
 
   closeSidebar();
