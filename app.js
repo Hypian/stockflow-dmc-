@@ -978,14 +978,14 @@ async function toggleProductStatus(id) {
     showToast('Product status updated', 'info');
   } catch (error) {
     showToast(error.message, 'error');
-    if (currentUser.role !== 'admin') {
-      showToast('Only administrators can delete products', 'error');
-      return;
-    }
   }
 }
 
 async function deleteProduct(id) {
+  if (currentUser.role !== 'admin') {
+    showToast('Only administrators can delete products', 'error');
+    return;
+  }
   const productEntries = db_entries.filter(e => String(e.product_id) === String(id));
 
   showConfirm('Delete Product',
@@ -1168,67 +1168,71 @@ function getAuditFiltered() {
 }
 
 function clearAuditFilters() {
-  document.getElementById('aud-date-from').value = '';
-  document.getElementById('aud-date-to').value = '';
-  document.getElementById('aud-user').value = '';
-  document.getElementById('aud-prod').value = '';
-  document.getElementById('aud-shift').value = '';
+  const ids = ['aud-date-from', 'aud-date-to', 'aud-user', 'aud-prod', 'aud-shift'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  audPage = 1;
   renderAuditTable();
 }
 
-// Summary cards
-const sumEl = document.getElementById('aud-summary');
-if (sumEl) {
-  const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
-  const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
-  const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
-  const products = [...new Set(rows.map(e => e.productId))].length;
-  sumEl.innerHTML = `
-      ${miniStat('fa-boxes-stacked', 'Total Stock', totalStock, 'text-blue-400')}
-      ${miniStat('fa-triangle-exclamation', 'Total Damaged', totalDmg, 'text-red-400')}
-      ${miniStat('fa-scale-unbalanced', 'Total Variance', totalVar, 'text-amber-400')}
-      ${miniStat('fa-box-open', 'Distinct Products', products, 'text-green-400')}`;
+function renderAuditTable() {
+  const rows = getAuditFiltered();
+  // Summary cards
+  const sumEl = document.getElementById('aud-summary');
+  if (sumEl) {
+    const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
+    const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
+    const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
+    const products = [...new Set(rows.map(e => e.productId))].length;
+    sumEl.innerHTML = `
+        ${miniStat('fa-boxes-stacked', 'Total Stock', totalStock, 'text-blue-400')}
+        ${miniStat('fa-triangle-exclamation', 'Total Damaged', totalDmg, 'text-red-400')}
+        ${miniStat('fa-scale-unbalanced', 'Total Variance', totalVar, 'text-amber-400')}
+        ${miniStat('fa-box-open', 'Distinct Products', products, 'text-green-400')}`;
+  }
+
+  const totalPages = Math.ceil(rows.length / audPerPage) || 1;
+  if (audPage > totalPages) audPage = 1;
+  const paged = rows.slice((audPage - 1) * audPerPage, audPage * audPerPage);
+
+  const tbody = document.getElementById('aud-tbody');
+  if (tbody) tbody.innerHTML = paged.map(e => `
+      <tr>
+        <td class="mono text-xs font-600">${e.date}</td>
+        <td>${getShiftBadgeHTML(e.shift)}</td>
+        <td>${e.userName}</td>
+        <td class="font-500 text-white">${e.productName}</td>
+        <td class="mono">${e.opening}</td>
+        <td class="mono">${e.received}</td>
+        <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
+        <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+        <td class="mono">${e.closing}</td>
+        <td class="mono font-600 text-white">${e.total}</td>
+        <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+        <td class="mono text-xs text-slate-500">${e.time}</td>
+      </tr>`).join('') || '<tr><td colspan="12" class="text-center text-slate-500 py-10">No records match filters</td></tr>';
+
+  // Footer totals
+  const tfoot = document.getElementById('aud-tfoot');
+  if (tfoot && rows.length) {
+    tfoot.innerHTML = `<tr style="background:rgba(245,158,11,.06);font-weight:700;">
+        <td colspan="4" class="px-4 py-3 text-amber-400 text-xs uppercase">Totals (${rows.length} records)</td>
+        <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
+        <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
+        <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
+        <td></td>
+      </tr>`;
+  }
+
+  const pg = document.getElementById('aud-pagination');
+  if (pg) pg.innerHTML = paginationHTML(audPage, totalPages, 'audPage', 'renderAuditTable');
 }
-
-const totalPages = Math.ceil(rows.length / audPerPage) || 1;
-if (audPage > totalPages) audPage = 1;
-const paged = rows.slice((audPage - 1) * audPerPage, audPage * audPerPage);
-
-const tbody = document.getElementById('aud-tbody');
-if (tbody) tbody.innerHTML = paged.map(e => `
-    <tr>
-      <td class="mono text-xs font-600">${e.date}</td>
-      <td>${getShiftBadgeHTML(e.shift)}</td>
-      <td>${e.userName}</td>
-      <td class="font-500 text-white">${e.productName}</td>
-      <td class="mono">${e.opening}</td>
-      <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-      <td class="mono">${e.closing}</td>
-      <td class="mono font-600 text-white">${e.total}</td>
-      <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
-      <td class="mono text-xs text-slate-500">${e.time}</td>
-    </tr>`).join('') || '<tr><td colspan="12" class="text-center text-slate-500 py-10">No records match filters</td></tr>';
-
-// Footer totals
-const tfoot = document.getElementById('aud-tfoot');
-if (tfoot && rows.length) {
-  tfoot.innerHTML = `<tr style="background:rgba(245,158,11,.06);font-weight:700;">
-      <td colspan="4" class="px-4 py-3 text-amber-400 text-xs uppercase">Totals (${rows.length} records)</td>
-      <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
-      <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
-      <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
-      <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-      <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
-      <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
-      <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
-      <td></td>
-    </tr>`;
-}
-
-const pg = document.getElementById('aud-pagination');
-if (pg) pg.innerHTML = paginationHTML(audPage, totalPages, 'audPage', 'renderAuditTable');
 
 
 function miniStat(icon, label, val, cls) {
@@ -1244,25 +1248,29 @@ function miniStat(icon, label, val, cls) {
 }
 
 function setAuditRange(range) {
-  const now = new Date(); const today = todayISO();
-  if (range === 'today') {
-    document.getElementById('aud-date').value = today;
-  } else if (range === 'week') {
-    // For single date selection, we'll just set it to the start of the week or today 
-    // depending on preference. Usually "Select Date" implies a specific day.
-    // Given the request "only to choose a date", we'll just set it to today for these presets.
-    document.getElementById('aud-date').value = today;
-  } else if (range === 'month') {
-    document.getElementById('aud-date').value = today;
-  }
-  audPage = 1; renderAuditTable();
-}
+  const now = new Date();
+  const today = todayISO();
+  const fromEl = document.getElementById('aud-date-from');
+  const toEl = document.getElementById('aud-date-to');
 
-function clearAuditFilters() {
-  const dateInput = document.getElementById('aud-date');
-  if (dateInput) dateInput.value = '';
-  ['aud-user', 'aud-prod', 'aud-shift'].forEach(id => document.getElementById(id).value = '');
-  audPage = 1; renderAuditTable();
+  if (range === 'today') {
+    if (fromEl) fromEl.value = today;
+    if (toEl) toEl.value = today;
+  } else if (range === 'week') {
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const lastWeekISO = lastWeek.toISOString().split('T')[0];
+    if (fromEl) fromEl.value = lastWeekISO;
+    if (toEl) toEl.value = today;
+  } else if (range === 'month') {
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonthISO = lastMonth.toISOString().split('T')[0];
+    if (fromEl) fromEl.value = lastMonthISO;
+    if (toEl) toEl.value = today;
+  }
+  audPage = 1;
+  renderAuditTable();
 }
 
 function exportAuditCSV() {
