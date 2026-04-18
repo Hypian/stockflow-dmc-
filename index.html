@@ -35,8 +35,24 @@
 <!-- ══════════════════════════════════════ PRINT AREA ══════════════════════════════════════ -->
 <div id="print-area" class="print-only" style="padding:20px;"></div>
 
+<!-- ══════════════════════════════════════ LOADING SPINNER ══════════════════════════════════════ -->
+<div id="loading-splash" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+  <div class="text-center">
+    <div class="flex items-center justify-center w-20 h-20 rounded-2xl bg-brand mb-6 mx-auto animate-pulse">
+      <i class="fa-solid fa-boxes-stacked text-4xl text-gray-900"></i>
+    </div>
+    <div class="text-xl font-bold text-white mb-2">StockFlow</div>
+    <div class="text-sm text-slate-400 mb-6">Loading your inventory system...</div>
+    <div class="flex gap-2 justify-center">
+      <div class="w-2 h-2 bg-brand rounded-full animate-bounce" style="animation-delay: 0s;"></div>
+      <div class="w-2 h-2 bg-brand rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+      <div class="w-2 h-2 bg-brand rounded-full animate-bounce" style="animation-delay: 0.4s;"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════ LOGIN SCREEN ══════════════════════════════════════ -->
-<div id="login-screen" class="login-bg min-h-screen flex items-center justify-center p-4">
+<div id="login-screen" class="login-bg min-h-screen flex items-center justify-center p-4 hidden">
   <div class="w-full max-w-md animate-scale-in">
     <!-- Logo -->
     <div class="text-center mb-8">

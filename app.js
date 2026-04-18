@@ -2155,6 +2155,10 @@ async function initApp() {
   const token = API.getToken();
   const savedShift = LS.get('sf_session_shift');
   
+  // Hide loading splash
+  const splash = document.getElementById('loading-splash');
+  if (splash) splash.classList.add('hidden');
+  
   if (session && session.id && token) {
     currentUser = session;
     sessionShift = savedShift;  // Restore shift from previous session
@@ -2171,6 +2175,10 @@ async function initApp() {
     buildSidebar();
     startClock();
     navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
+  } else {
+    // Show login screen if no session
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-shell').classList.add('hidden');
   }
 }
 
