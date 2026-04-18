@@ -1046,10 +1046,14 @@ function renderAuditEntriesView() {
   return `
     <!-- Filters -->
     <div class="glass rounded-xl p-4">
-      <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <div>
-          <label class="text-xs text-slate-500 mb-1 block">Select Date</label>
-          <input id="aud-date" type="date" class="form-input" onchange="renderAuditTable()" />
+          <label class="text-xs text-slate-500 mb-1 block">From Date</label>
+          <input id="aud-date-from" type="date" class="form-input" onchange="renderAuditTable()" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 mb-1 block">To Date</label>
+          <input id="aud-date-to" type="date" class="form-input" onchange="renderAuditTable()" />
         </div>
         <div>
           <label class="text-xs text-slate-500 mb-1 block">User</label>
@@ -1072,6 +1076,9 @@ function renderAuditEntriesView() {
             <option value="morning">Morning</option>
             <option value="night">Night</option>
           </select>
+        </div>
+        <div class="flex items-end">
+          <button onclick="clearAuditFilters()" class="btn btn-secondary btn-sm w-full">Clear Filters</button>
         </div>
       </div>
     </div>
@@ -1144,13 +1151,15 @@ function renderAuditLogsView() {
 
 let audPage = 1; const audPerPage = 15;
 function getAuditFiltered() {
-  const date = (document.getElementById('aud-date') || {}).value || '';
+  const dateFrom = (document.getElementById('aud-date-from') || {}).value || '';
+  const dateTo = (document.getElementById('aud-date-to') || {}).value || '';
   const user = (document.getElementById('aud-user') || {}).value || '';
   const prod = (document.getElementById('aud-prod') || {}).value || '';
   const shift = (document.getElementById('aud-shift') || {}).value || '';
 
   return db_entries.filter(e => {
-    if (date && e.date !== date) return false;
+    if (dateFrom && e.date < dateFrom) return false;
+    if (dateTo && e.date > dateTo) return false;
     if (user && e.userId !== Number(user)) return false;
     if (prod && e.productId !== Number(prod)) return false;
     if (shift && e.shift !== shift) return false;
@@ -1158,10 +1167,14 @@ function getAuditFiltered() {
   });
 }
 
-function renderAuditTable() {
-  const rows = getAuditFiltered().sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
-  const count = document.getElementById('aud-count');
-  if (count) count.textContent = `${rows.length} records`;
+function clearAuditFilters() {
+  document.getElementById('aud-date-from').value = '';
+  document.getElementById('aud-date-to').value = '';
+  document.getElementById('aud-user').value = '';
+  document.getElementById('aud-prod').value = '';
+  document.getElementById('aud-shift').value = '';
+  renderAuditTable();
+}
 
   // Summary cards
   const sumEl = document.getElementById('aud-summary');
