@@ -102,7 +102,11 @@ async function doLogin() {
     const shift = getCurrentShift(now);
     
     currentUser = { 
-      ...data, 
+      id: data.id || null,
+      name: data.name || 'User',
+      username: data.username || '',
+      role: data.role || 'user',
+      token: data.token,
       loginTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       loginDate: todayISO()
     };
