@@ -935,7 +935,7 @@ function showProductModal(id = null) {
   }
   const products = db_products;
   const p = id ? products.find(x => String(x.id) === String(id)) : null;
-  const units = ['pcs', 'cartons', 'kgs', 'ltrs', 'bags', 'boxes', 'bottles', 'rolls', 'qty'];
+  const units = ['pcs', 'cartons', 'kgs', 'ltrs', 'bags', 'boxes', 'bottles', 'rolls', 'qty', 'crate', 'unit', 'pack', 'tray', 'gallon'];
 
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
