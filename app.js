@@ -4,7 +4,7 @@
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const USERS = [
-  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Pegy', avatar: 'RP' },
+  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Peggy', avatar: 'RP' },
   { id: 2, username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
   { id: 3, username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
 ];
@@ -426,7 +426,6 @@ function fmtDate(iso) {
 function buildSidebar() {
   // User info
   document.getElementById('sidebar-user').innerHTML = `
-    <div class="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center text-sm font-800 text-white">${currentUser.avatar}</div>
     <div class="sidebar-logo-text min-w-0">
       <div class="text-sm font-600 text-white truncate">${currentUser.name}</div>
       <div class="text-xs text-slate-500 capitalize">${currentUser.role}</div>
@@ -681,7 +680,9 @@ function renderAdminHome() {
     return `
             <div class="glass-hover rounded-xl p-3 cursor-pointer" onclick="navigateTo('admin-stock')">
               <div class="flex items-center gap-3 mb-2">
-                <div class="w-8 h-8 rounded-lg bg-brand-700/30 flex items-center justify-center text-xs font-700 text-brand">${u.avatar}</div>
+                <div class="w-8 h-8 rounded-lg bg-brand-700/30 flex items-center justify-center text-xs font-700 text-brand">
+                  <i class="fa-solid fa-user"></i>
+                </div>
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-600 text-white truncate">${u.name}</div>
                   <div class="text-xs text-slate-500">${userToday.length} entries today</div>

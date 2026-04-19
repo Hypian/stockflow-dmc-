@@ -3,7 +3,7 @@ const pool = require('./config/db');
 require('dotenv').config();
 
 const users = [
-  { name: 'Rusine Pegy', username: 'rusine', password: 'rusine123', role: 'admin' },
+  { name: 'Rusine Peggy', username: 'rusine', password: 'rusine123', role: 'admin' },
   { name: 'John Rwamanywa', username: 'john', password: 'john123', role: 'user' },
   { name: 'Binama David', username: 'binama', password: 'binama123', role: 'user' },
 ];
