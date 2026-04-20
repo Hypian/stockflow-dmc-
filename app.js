@@ -23,7 +23,7 @@ let db_audit_logs = [];
 
 // ── AUTO-POLLING ──────────────────────────────────────────────────────────
 let currentPollingInterval = null;
-const POLL_INTERVAL = 30000; // 30 seconds
+const POLL_INTERVAL = 15000; // 15 seconds
 
 function stopProductPolling() {
   if (currentPollingInterval) {
@@ -468,8 +468,8 @@ function closeSidebar() {
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 let activePage = '';
 
-async function navigateTo(page) {
-  if (activePage === page) return;
+async function navigateTo(page, force = false) {
+  if (!force && activePage === page) return;
   activePage = page;
 
   // Stop any existing polling before navigating
@@ -1009,7 +1009,7 @@ async function saveProduct(id) {
     }
 
     closeModal();
-    renderProductTable();
+    navigateTo('admin-products', true);
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -1029,7 +1029,7 @@ async function toggleProductStatus(id) {
   try {
     const updated = await API.saveProduct(id, { ...p, active: !p.active });
     db_products = db_products.map(x => String(x.id) === String(id) ? updated : x);
-    renderProductTable();
+    navigateTo('admin-products', true);
     showToast('Product status updated', 'info');
   } catch (error) {
     showToast(error.message, 'error');
@@ -1049,7 +1049,7 @@ async function deleteProduct(id) {
       try {
         await API.deleteProduct(id);
         db_products = await API.getProducts();
-        renderProductTable();
+        navigateTo('admin-products', true);
         showToast('Product deleted', 'success');
       } catch (error) {
         showToast(error.message, 'error');
@@ -1897,7 +1897,7 @@ async function saveEditEntry(id, opening) {
     } : e);
 
     closeModal();
-    navigateTo('user-dashboard');
+    navigateTo('user-dashboard', true);
     showToast('Entry updated successfully', 'success');
   } catch (error) {
     showToast(error.message, 'error');
@@ -2064,21 +2064,20 @@ async function saveEntry() {
 
     clearForm();
 
-    // Refresh admin dashboard to show updated staff activity
+    // Refresh data and re-render current page
     try {
       db_entries = await API.getEntries();
       db_products = await API.getProducts();
 
-      // If admin is currently viewing the dashboard, refresh it
-      const currentPage = document.querySelector('.nav-item.active')?.id?.replace('nav-', '');
-      if (currentPage === 'admin-home') {
-        navigateTo('admin-home');
+      // IMPORTANT: Re-render the current view to show the new entry immediately
+      const currentPage = activePage;
+      if (currentPage === 'user-dashboard' || currentPage === 'admin-home') {
+        navigateTo(currentPage, true);
       }
     } catch (e) {
-      console.warn("Could not refresh dashboard data:", e);
+      console.warn("Could not refresh UI data:", e);
+      navigateTo(activePage, true);
     }
-
-    navigateTo('user-dashboard');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
