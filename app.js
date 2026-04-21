@@ -186,7 +186,7 @@ async function doLogin() {
       role: data.role || 'user',
       token: data.token,
       loginTime: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-      loginDate: todayISO()
+      loginDate: getWorkingDate()
     };
     sessionShift = shift;  // Store shift at login
 
@@ -265,6 +265,13 @@ function showReportOptions(context = 'normal') {
       <p class="text-sm text-slate-400 mb-6">${sub}</p>
       
       <div class="grid grid-cols-1 gap-3">
+        ${context === 'logout' ? `
+        <button onclick="generateShiftReport('pdf_logout', '${context}')" class="btn justify-center py-4 text-base glow-red" style="background:#dc2626; border-color:#ef4444; color:white;">
+          <i class="fa-solid fa-file-pdf text-lg"></i> <span>Download PDF & Logout</span>
+        </button>` : `
+        <button onclick="generateShiftReport('pdf', '${context}')" class="btn justify-center py-4 text-base glow-red" style="background:#dc2626; border-color:#ef4444; color:white;">
+          <i class="fa-solid fa-file-pdf text-lg"></i> <span>Download PDF Report</span>
+        </button>`}
         <button onclick="generateShiftReport('print', '${context}')" class="btn btn-primary justify-center py-4 text-base glow-amber">
           <i class="fa-solid fa-print text-lg"></i> <span>Generate & Print PDF</span>
         </button>
@@ -282,7 +289,7 @@ function showReportOptions(context = 'normal') {
 }
 
 function generateShiftReport(type, context = 'normal') {
-  const entries = db_entries.filter(e => e.userId === currentUser.id && e.date === todayISO());
+  const entries = db_entries.filter(e => e.userId === currentUser.id && e.date === getWorkingDate());
 
   if (entries.length === 0) {
     showToast('No entries recorded for today yet.', 'warn');
@@ -291,13 +298,17 @@ function generateShiftReport(type, context = 'normal') {
 
   if (type === 'print') {
     printShiftReport(entries);
+  } else if (type === 'pdf') {
+    downloadShiftPDF(entries, false);
+  } else if (type === 'pdf_logout') {
+    downloadShiftPDF(entries, true);
   } else {
     downloadShiftCSV(entries);
   }
 
   closeModal();
 
-  if (context === 'logout' || true) {
+  if (context === 'logout' && type !== 'pdf_logout') {
     setTimeout(() => {
       showConfirm(
         'Shift Report Completed',
@@ -307,6 +318,99 @@ function generateShiftReport(type, context = 'normal') {
       );
     }, 1000);
   }
+}
+
+function downloadShiftPDF(today, autoLogout = false) {
+  const now = new Date();
+  const rows = today.map(e => `
+    <tr>
+      <td style="padding:10px;border:1px solid #ddd;font-weight:600;">${e.productName}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.opening}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.received}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;color:#b45309;">${e.disbursed || 0}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;color:#ef4444;">${e.damaged}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.closing}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-weight:700;">${e.total}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;">${e.variance !== 0 ? '⚠ ' + e.variance : '✓ 0'}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;font-size:8pt;color:#666;">${e.time}</td>
+      <td style="padding:10px;border:1px solid #ddd;text-align:center;text-transform:capitalize;">${e.shift}</td>
+    </tr>`).join('');
+
+  const content = document.createElement('div');
+  content.style.background = '#fff';
+  content.style.padding = '20px';
+  content.innerHTML = `
+    <div class="print-section" style="font-family:'Sora',Arial,sans-serif; max-width:1000px; margin:0 auto; color:#111;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #111;padding-bottom:20px;margin-bottom:24px;">
+        <div>
+          <h1 style="margin:0;font-size:28pt;font-weight:900;letter-spacing:-1px;text-transform:uppercase;">StockFlow</h1>
+          <p style="margin:0;font-size:10pt;color:#555;font-weight:500;">PREMIUM INVENTORY MANAGEMENT SYSTEM</p>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:16pt;font-weight:800;color:#000;">DAILY SHIFT REPORT</div>
+          <div style="font-size:9pt;color:#444;margin-top:4px;">Generation Date: <strong>${now.toLocaleString('en-GB')}</strong></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:30px;background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-radius:12px;">
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Responsible Staff</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${currentUser.name}</div></div>
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Report Date</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</div></div>
+        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Shift Period</div><div style="font-size:11pt;font-weight:700;color:#0f172a;">${getShiftLabel(sessionShift || getCurrentShift())}</div></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:30px;">
+        <thead>
+          <tr style="background:#1e293b;color:#fff;">
+            <th style="padding:12px 10px;text-align:left;border:1px solid #334155;">Product Description</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Opening</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Received</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Stock Out</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Damaged</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Closing</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Remaining</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Variance</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Time</th>
+            <th style="padding:12px 10px;text-align:center;border:1px solid #334155;">Shift</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:60px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:50px;">
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;"></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">STAFF: ${currentUser.name.toUpperCase()}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;"></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">SUPERVISOR SIGNATURE</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="height:50px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:24pt;opacity:0.1;"><i class="fa-solid fa-stamp"></i></div>
+          <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">OFFICIAL STAMP & DATE</div>
+        </div>
+      </div>
+      <div style="margin-top:80px;text-align:center;font-size:8pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;">
+        This is an official document generated by StockFlow Inventory System. Path: Reports/Shift/${getWorkingDate().replace(/-/g, '/')}/${currentUser.id}
+      </div>
+    </div>`;
+
+  showToast('Generating PDF...', 'info', 3000);
+
+  const opt = {
+    margin: [10, 10, 10, 10],
+    filename: `StockFlow_Shift_Report_${currentUser.name.replace(/\s+/g, '_')}_${getWorkingDate()}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  };
+
+  html2pdf().set(opt).from(content).save().then(() => {
+    showToast('PDF downloaded successfully!', 'success');
+    if (autoLogout) {
+      setTimeout(() => doLogout(), 1000);
+    }
+  }).catch(err => {
+    console.error('PDF generation failed:', err);
+    showToast('PDF generation failed. Fall back to Print Report.', 'error');
+  });
 }
 
 function printShiftReport(today) {
@@ -386,7 +490,7 @@ function printShiftReport(today) {
       </div>
       
       <div style="margin-top:80px;text-align:center;font-size:8pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:20px;">
-        This is an official document generated by StockFlow Inventory System. Path: Reports/Shift/${todayISO().replace(/-/g, '/')}/${currentUser.id}
+        This is an official document generated by StockFlow Inventory System. Path: Reports/Shift/${getWorkingDate().replace(/-/g, '/')}/${currentUser.id}
       </div>
     </div>`;
   window.print();
@@ -405,7 +509,7 @@ function downloadShiftCSV(today) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `StockFlow_Report_${currentUser.name.replace(/\s+/g, '_')}_${todayISO()}.csv`);
+  link.setAttribute("download", `StockFlow_Report_${currentUser.name.replace(/\s+/g, '_')}_${getWorkingDate()}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -415,6 +519,16 @@ function downloadShiftCSV(today) {
 // ── DATE HELPER ───────────────────────────────────────────────────────────────
 function todayISO() {
   const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function getWorkingDate(date = new Date()) {
+  const d = new Date(date);
+  const h = d.getHours();
+  // Shifts: Morning (10-19), Night (19-10).
+  // If it's before 10:00 AM, we are still on the "Night Shift" of the previous day.
+  if (h < 10) {
+    d.setDate(d.getDate() - 1);
+  }
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function fmtDate(iso) {
@@ -623,7 +737,7 @@ function getLowStockHTML() {
 function renderAdminHome() {
   const entries = db_entries;
   const products = db_products;
-  const today = entries.filter(e => e.date === todayISO());
+  const today = entries.filter(e => e.date === getWorkingDate());
   const totalDmg = entries.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const todayDmg = today.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const users = USERS.filter(u => u.role === 'user');
@@ -1412,7 +1526,7 @@ function miniStat(icon, label, val, cls) {
 
 function setAuditRange(range) {
   const now = new Date();
-  const today = todayISO();
+  const today = getWorkingDate(now);
   const fromEl = document.getElementById('aud-date-from');
   const toEl = document.getElementById('aud-date-to');
 
@@ -1447,7 +1561,7 @@ function getAuditFilename(ext) {
     if (fDateFrom === fDateTo) filename += `-${fDateFrom}`;
     else filename += `-${fDateFrom || 'start'}-to-${fDateTo || 'end'}`;
   } else {
-    filename += `-${todayISO()}`;
+    filename += `-${getWorkingDate()}`;
   }
   
   if (fShift) filename += `-${fShift}`;
@@ -1791,7 +1905,7 @@ function renderUserDashboard() {
   const products = db_products.filter(p => p.active);
   const shift = getCurrentShift();
   const entries = db_entries;
-  const today = entries.filter(e => String(e.userId) === String(currentUser.id) && e.date === todayISO());
+  const today = entries.filter(e => String(e.userId) === String(currentUser.id) && e.date === getWorkingDate());
 
 
   return `
@@ -1906,7 +2020,7 @@ function renderUserDashboard() {
       <div class="mt-4 flex flex-wrap gap-2 items-center p-3 glass rounded-xl">
         <span class="text-xs text-slate-500">Will be tagged:</span>
         ${getShiftBadgeHTML(shift)}
-        <span class="chip"><i class="fa-regular fa-calendar text-xs"></i> ${todayISO()}</span>
+        <span class="chip"><i class="fa-regular fa-calendar text-xs"></i> ${getWorkingDate()}</span>
         <span class="chip"><i class="fa-regular fa-clock text-xs"></i> <span id="form-time-tag">${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></span>
         <span class="chip"><i class="fa-solid fa-user text-xs"></i> ${currentUser.name}</span>
       </div>
@@ -2088,6 +2202,7 @@ async function saveEditEntry(id, opening) {
 
   try {
     const entryData = {
+      date: getWorkingDate(),
       opening,
       received,
       damaged,
@@ -2216,7 +2331,7 @@ async function saveEntry() {
 
   const now = new Date();
   const shift = getCurrentShift(now);
-  const today = todayISO();
+  const today = getWorkingDate(now);
 
   if (opening < 0 || received < 0 || damaged < 0 || disbursed < 0 || closing < 0) {
     showToast('No negative values allowed', 'error');
