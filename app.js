@@ -130,7 +130,7 @@ function updateSidebarShift(shift, el) {
   if (!el) return;
   const dotCls = shift === 'morning' ? 'shift-morning' : 'shift-night';
   const label = shift === 'morning' ? 'Morning Shift' : 'Night Shift';
-  const time = shift === 'morning' ? '08:00 – 18:00' : '18:00 – 08:00';
+  const time = shift === 'morning' ? '10:00 – 19:00' : '19:00 – 10:00';
   el.innerHTML = `<div class="flex items-center gap-2">
     <span class="shift-dot ${dotCls}"></span>
     <div class="sidebar-logo-text"><div class="text-xs font-600 text-white">${label}</div>
@@ -945,9 +945,13 @@ function renderAdminStockTable() {
       <td>${getShiftBadgeHTML(e.shift)}</td>
       <td class="mono text-xs">${e.date}</td>
       <td class="mono text-xs text-slate-500">${e.time}</td>
-      <td><button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 hover:text-red-300 p-1"><i class="fa-solid fa-trash text-xs"></i></button></td>
+      <td>
+        <div class="flex items-center gap-2">
+          <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry"><i class="fa-solid fa-pen text-xs"></i></button>
+          <button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 hover:text-red-300 p-1" title="Delete Entry"><i class="fa-solid fa-trash text-xs"></i></button>
+        </div>
+      </td>
     </tr>`).join('') || '<tr><td colspan="13" class="text-center text-slate-500 py-10">No entries match your filters</td></tr>';
-
   const pg = document.getElementById('as-pagination');
   if (pg) pg.innerHTML = paginationHTML(asPage, totalPages, 'asPage', 'renderAdminStockTable');
 }
@@ -1253,7 +1257,7 @@ function renderAuditEntriesView() {
           <thead><tr>
             <th>Date</th><th>Shift</th><th>User</th><th>Product</th>
             <th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th>
-            <th>Remaining</th><th>Variance</th><th>Time</th>
+            <th>Remaining</th><th>Variance</th><th>Time</th><th class="w-10"></th>
           </tr></thead>
           <tbody id="aud-tbody"></tbody>
           <tfoot id="aud-tfoot"></tfoot>
@@ -1369,8 +1373,10 @@ function renderAuditTable() {
         <td class="mono font-600 text-white">${e.total}</td>
         <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
         <td class="mono text-xs text-slate-500">${e.time}</td>
-      </tr>`).join('') || '<tr><td colspan="12" class="text-center text-slate-500 py-10">No records match filters</td></tr>';
-
+        <td>
+          <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry"><i class="fa-solid fa-pen text-xs"></i></button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="13" class="text-center text-slate-500 py-10">No records match filters</td></tr>';
   // Footer totals
   const tfoot = document.getElementById('aud-tfoot');
   if (tfoot && rows.length) {
@@ -2100,7 +2106,7 @@ async function saveEditEntry(id, opening) {
     } : e);
 
     closeModal();
-    navigateTo('user-dashboard', true);
+    navigateTo(activePage, true);
     showToast('Entry updated successfully', 'success');
   } catch (error) {
     showToast(error.message, 'error');
