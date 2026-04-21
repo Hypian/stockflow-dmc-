@@ -1195,7 +1195,7 @@ function renderAdminAudit() {
 
 function setAuditMode(mode) {
   LS.set('sf_audit_mode', mode);
-  navigateTo('admin-audit');
+  navigateTo('admin-audit', true);
 }
 
 function renderAuditEntriesView() {
@@ -2401,10 +2401,10 @@ function paginationHTML(current, total, varName, fn) {
   <div class="flex items-center gap-2 text-sm">
     <span class="text-slate-500">Page ${current} of ${total}</span>
     <div class="flex gap-1 ml-auto">
-      <button onclick="window['${varName}']=${current}-1;${fn}()" ${current <= 1 ? 'disabled' : ''} class="btn btn-secondary btn-sm"><i class="fa-solid fa-chevron-left text-xs"></i></button>
+      <button onclick="${varName}=${current}-1;${fn}()" ${current <= 1 ? 'disabled' : ''} class="btn btn-secondary btn-sm"><i class="fa-solid fa-chevron-left text-xs"></i></button>
       ${pages.map(p => p === '…' ? `<span class="btn btn-ghost btn-sm">…</span>` :
-    `<button onclick="window['${varName}']=${p};${fn}()" class="btn ${p === current ? 'btn-primary' : 'btn-ghost'} btn-sm">${p}</button>`).join('')}
-      <button onclick="window['${varName}']=${current}+1;${fn}()" ${current >= total ? 'disabled' : ''} class="btn btn-secondary btn-sm"><i class="fa-solid fa-chevron-right text-xs"></i></button>
+    `<button onclick="${varName}=${p};${fn}()" class="btn ${p === current ? 'btn-primary' : 'btn-ghost'} btn-sm">${p}</button>`).join('')}
+      <button onclick="${varName}=${current}+1;${fn}()" ${current >= total ? 'disabled' : ''} class="btn btn-secondary btn-sm"><i class="fa-solid fa-chevron-right text-xs"></i></button>
     </div>
   </div>`;
 }
