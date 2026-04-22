@@ -94,6 +94,17 @@ const createEntry = async (req, res) => {
 const updateEntry = async (req, res) => {
   const { id } = req.params;
   const updates = req.body; // e.g., { damaged: 5, closing: 95 }
+  const allowedFields = new Set([
+    'opening',
+    'received',
+    'disbursed',
+    'damaged',
+    'closing',
+    'variance',
+    'shift',
+    'entry_date',
+    'entry_time'
+  ]);
 
   try {
     // 1. Get the existing record first for the audit trail
@@ -106,7 +117,7 @@ const updateEntry = async (req, res) => {
     const oldValues = existingResult.rows[0];
 
     // Build the dynamic update query based on provided fields
-    const keys = Object.keys(updates);
+    const keys = Object.keys(updates).filter(key => allowedFields.has(key));
     if (keys.length === 0) return res.status(400).json({ error: 'No data to update' });
 
     const setString = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
@@ -179,4 +190,3 @@ module.exports = {
   updateEntry,
   deleteEntry
 };
-

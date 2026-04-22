@@ -3,13 +3,14 @@
   ════════════════════════════════════════════════════════════════════════════ */
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
-const USERS = [
-  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Peggy', avatar: 'RP' },
-  { id: 2, username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
-  { id: 3, username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
-];
-
-const DEFAULT_PRODUCTS = [];
+function getKnownUsers() {
+  const map = new Map();
+  db_entries.forEach(e => {
+    if (!e?.userId || !e?.userName) return;
+    map.set(String(e.userId), { id: e.userId, name: e.userName, role: 'user' });
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -745,7 +746,6 @@ function renderAdminHome() {
   const today = entries.filter(e => e.date === getWorkingDate());
   const totalDmg = entries.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const todayDmg = today.reduce((s, e) => s + Number(e.damaged || 0), 0);
-  const users = USERS.filter(u => u.role === 'user');
 
   return `
   <div class="stagger space-y-6">
@@ -995,7 +995,7 @@ function renderAdminStock() {
         <input id="as-date" type="date" class="form-input" onchange="renderAdminStockTable()" />
         <select id="as-user" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Users</option>
-          ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+          ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
         </select>
         <select id="as-shift" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Shifts</option>
@@ -1340,7 +1340,7 @@ function renderAuditEntriesView() {
           <label class="text-xs text-slate-500 mb-1 block">User</label>
           <select id="aud-user" class="form-input" onchange="renderAuditTable()">
             <option value="">All Users</option>
-            ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+            ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -2297,6 +2297,17 @@ async function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
+    // Refresh entries from backend to include latest values from other users/shifts.
+    try {
+      const freshEntries = await API.getEntries();
+      if (Array.isArray(freshEntries)) db_entries = freshEntries;
+    } catch (e) {
+      console.warn('Failed to refresh entries for opening autofill:', e?.message || e);
+    }
+
+    const openingStock = getUnifiedOpeningStock(productId);
+
+    if (openingStock === null) {
     // Refresh entries from backend to ensure we have the latest closing from other users/shifts
     try {
       const freshEntries = await API.getEntries();
@@ -2321,8 +2332,18 @@ async function updateUnit() {
     } else {
       // If no history found, reset to empty to allow manual entry
       openingInput.value = '';
+    } else {
+      openingInput.value = openingStock;
+
+      const latestEntry = getLatestEntryForProduct(productId);
+      if (latestEntry?.userName && latestEntry.userName !== currentUser?.name) {
+        showToast(`Opening inherited from ${latestEntry.userName}'s latest closing`, 'info');
+      }
     }
     // Force recalculation immediately after auto-fill
+    calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
     calcStock();
   } else if (openingInput) {
     openingInput.value = '';
@@ -2330,6 +2351,47 @@ async function updateUnit() {
   }
 }
 
+function getUnifiedOpeningStock(productId) {
+  const entries = db_entries.filter(e => String(e.productId) === String(productId));
+  if (!entries.length) return null;
+
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const workingDate = getWorkingDate(now);
+
+  // Unified-stock rule:
+  // For night shift input, use the closing stock recorded in morning shift
+  // for the same working date and product (regardless of which user entered it).
+  if (shift === 'night') {
+    const morningEntry = entries
+      .filter(e => e.date === workingDate && e.shift === 'morning')
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date);
+        return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+      })[0];
+
+    if (morningEntry) return Number(morningEntry.closing) || 0;
+  }
+
+  // Fallback for other cases (or if no morning entry exists yet):
+  // use latest known closing for the product.
+  const latestEntry = entries.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+  })[0];
+  return latestEntry ? (Number(latestEntry.closing) || 0) : null;
+}
+
+function getLatestEntryForProduct(productId) {
+  return db_entries
+    .filter(e => String(e.productId) === String(productId))
+    .sort((a, b) => {
+      const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
+      return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+    })[0] || null;
+}
+
+function calcStock(source = 'auto') {
 function calcStock(source = '') {
   const opVal = document.getElementById('f-opening').value;
   const reVal = document.getElementById('f-received').value;
@@ -2688,4 +2750,3 @@ if (document.readyState === 'loading') {
 } else {
   initApp();
 }
-

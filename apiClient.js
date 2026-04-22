@@ -3,7 +3,13 @@
  * Centralized fetch logic for the Node.js / PostgreSQL backend.
  */
 
-const API_BASE_URL = 'https://stockflow-dmc.onrender.com/api';
+const API_BASE_URL = (() => {
+  const configured = (window.STOCKFLOW_API_BASE_URL || '').trim();
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return isLocalhost ? 'http://localhost:5000/api' : 'https://stockflow-dmc.onrender.com/api';
+})();
 
 const API = {
   // Get token helper
@@ -128,4 +134,3 @@ const API = {
     return await API.request('/audit', 'GET');
   }
 };
-
