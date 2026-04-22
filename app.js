@@ -175,6 +175,11 @@ async function doLogin() {
   btn.disabled = true;
 
   try {
+    const backendOk = await checkBackendConnectionStatus();
+    if (!backendOk) {
+      showToast('Cannot sign in while backend is unreachable.', 'error');
+      return;
+    }
     const data = await API.login(u, p);
     const now = new Date();
     const shift = getCurrentShift(now);
@@ -215,6 +220,25 @@ async function doLogin() {
   } finally {
     btn.innerHTML = orgHtml;
     btn.disabled = false;
+  }
+}
+
+async function checkBackendConnectionStatus() {
+  const statusEl = document.getElementById('connection-status');
+  if (!statusEl) return true;
+
+  statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-slate-800/40 border-slate-700 text-slate-300';
+  statusEl.innerHTML = '<i class="fa-solid fa-plug-circle-check mr-1"></i> Checking backend connection…';
+
+  try {
+    await API.request('/health', 'GET');
+    statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-300';
+    statusEl.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i> Backend connected';
+    return true;
+  } catch (e) {
+    statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-red-500/10 border-red-500/30 text-red-300';
+    statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> Backend unreachable. Check API URL / server and try again.';
+    return false;
   }
 }
 
@@ -2308,6 +2332,10 @@ async function updateUnit() {
     const openingStock = getUnifiedOpeningStock(productId);
 
     if (openingStock === null) {
+
+    const openingStock = getUnifiedOpeningStock(productId);
+
+    if (openingStock === null) {
     // Refresh entries from backend to ensure we have the latest closing from other users/shifts
     try {
       const freshEntries = await API.getEntries();
@@ -2348,7 +2376,50 @@ async function updateUnit() {
   } else if (openingInput) {
     openingInput.value = '';
     calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
+    calcStock();
   }
+}
+
+function getUnifiedOpeningStock(productId) {
+  const entries = db_entries.filter(e => String(e.productId) === String(productId));
+  if (!entries.length) return null;
+
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const workingDate = getWorkingDate(now);
+
+  // Unified-stock rule:
+  // For night shift input, use the closing stock recorded in morning shift
+  // for the same working date and product (regardless of which user entered it).
+  if (shift === 'night') {
+    const morningEntry = entries
+      .filter(e => e.date === workingDate && e.shift === 'morning')
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date);
+        return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+      })[0];
+
+    if (morningEntry) return Number(morningEntry.closing) || 0;
+  }
+
+  // Fallback for other cases (or if no morning entry exists yet):
+  // use latest known closing for the product.
+  const latestEntry = entries.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+  })[0];
+  return latestEntry ? (Number(latestEntry.closing) || 0) : null;
+}
+
+function getLatestEntryForProduct(productId) {
+  return db_entries
+    .filter(e => String(e.productId) === String(productId))
+    .sort((a, b) => {
+      const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
+      return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+    })[0] || null;
 }
 
 function getUnifiedOpeningStock(productId) {
@@ -2741,6 +2812,7 @@ async function initApp() {
     if (splash) splash.classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
+    checkBackendConnectionStatus();
   }
 }
 
