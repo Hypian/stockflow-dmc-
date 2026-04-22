@@ -3,7 +3,14 @@
  * Centralized fetch logic for the Node.js / PostgreSQL backend.
  */
 
-const API_BASE_URL = 'https://stockflow-dmc.onrender.com/api';
+const API_BASE_URL = (() => {
+  const configured = (window.STOCKFLOW_API_BASE_URL || '').trim();
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return isLocalhost ? 'http://localhost:5000/api' : 'https://stockflow-dmc.onrender.com/api';
+})();
+const API_TIMEOUT_MS = 12000;
 
 const API = {
   // Get token helper
@@ -18,14 +25,17 @@ const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const config = { method, headers };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const config = { method, headers, signal: controller.signal };
     if (body) {
       config.body = JSON.stringify(body);
     }
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-      const data = await response.json();
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
       
       if (!response.ok) {
         throw new Error(data.error || 'API Request Failed');
@@ -33,8 +43,13 @@ const API = {
       
       return data;
     } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timed out after ${Math.floor(API_TIMEOUT_MS / 1000)}s. Please verify backend connectivity.`);
+      }
       console.error(`API Error (${endpoint}):`, error);
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   },
 
@@ -118,4 +133,3 @@ const API = {
     return await API.request('/audit', 'GET');
   }
 };
-

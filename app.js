@@ -3,13 +3,14 @@
   ════════════════════════════════════════════════════════════════════════════ */
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
-const USERS = [
-  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Peggy', avatar: 'RP' },
-  { id: 2, username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
-  { id: 3, username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
-];
-
-const DEFAULT_PRODUCTS = [];
+function getKnownUsers() {
+  const map = new Map();
+  db_entries.forEach(e => {
+    if (!e?.userId || !e?.userName) return;
+    map.set(String(e.userId), { id: e.userId, name: e.userName, role: 'user' });
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -175,6 +176,11 @@ async function doLogin() {
   btn.disabled = true;
 
   try {
+    const backendOk = await checkBackendConnectionStatus();
+    if (!backendOk) {
+      showToast('Cannot sign in while backend is unreachable.', 'error');
+      return;
+    }
     const data = await API.login(u, p);
     const now = new Date();
     const shift = getCurrentShift(now);
@@ -215,6 +221,25 @@ async function doLogin() {
   } finally {
     btn.innerHTML = orgHtml;
     btn.disabled = false;
+  }
+}
+
+async function checkBackendConnectionStatus() {
+  const statusEl = document.getElementById('connection-status');
+  if (!statusEl) return true;
+
+  statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-slate-800/40 border-slate-700 text-slate-300';
+  statusEl.innerHTML = '<i class="fa-solid fa-plug-circle-check mr-1"></i> Checking backend connection…';
+
+  try {
+    await API.request('/health', 'GET');
+    statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-300';
+    statusEl.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i> Backend connected';
+    return true;
+  } catch (e) {
+    statusEl.className = 'mb-4 text-xs rounded-lg border px-3 py-2 bg-red-500/10 border-red-500/30 text-red-300';
+    statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> Backend unreachable. Check API URL / server and try again.';
+    return false;
   }
 }
 
@@ -740,7 +765,6 @@ function renderAdminHome() {
   const today = entries.filter(e => e.date === getWorkingDate());
   const totalDmg = entries.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const todayDmg = today.reduce((s, e) => s + Number(e.damaged || 0), 0);
-  const users = USERS.filter(u => u.role === 'user');
 
   return `
   <div class="stagger space-y-6">
@@ -990,7 +1014,7 @@ function renderAdminStock() {
         <input id="as-date" type="date" class="form-input" onchange="renderAdminStockTable()" />
         <select id="as-user" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Users</option>
-          ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+          ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
         </select>
         <select id="as-shift" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Shifts</option>
@@ -1333,7 +1357,7 @@ function renderAuditEntriesView() {
           <label class="text-xs text-slate-500 mb-1 block">User</label>
           <select id="aud-user" class="form-input" onchange="renderAuditTable()">
             <option value="">All Users</option>
-            ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+            ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -2231,7 +2255,7 @@ async function saveEditEntry(id, opening) {
   }
 }
 
-function updateUnit() {
+async function updateUnit() {
   const sel = document.getElementById('f-product');
   const opt = sel.options[sel.selectedIndex];
   const unit = opt?.dataset?.unit;
@@ -2241,21 +2265,71 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    const entries = db_entries;
-    const lastEntry = entries.filter(e => e.productId === productId).sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
+    // Refresh entries from backend to include latest values from other users/shifts.
+    try {
+      const freshEntries = await API.getEntries();
+      if (Array.isArray(freshEntries)) db_entries = freshEntries;
+    } catch (e) {
+      console.warn('Failed to refresh entries for opening autofill:', e?.message || e);
+    }
 
-    if (lastEntry) {
-      if (!openingInput.value) {
-        openingInput.value = lastEntry.closing;
-      }
-    } else {
+    const openingStock = getUnifiedOpeningStock(productId);
+
+    if (openingStock === null) {
       openingInput.value = '';
+    } else {
+      openingInput.value = openingStock;
+
+      const latestEntry = getLatestEntryForProduct(productId);
+      if (latestEntry?.userName && latestEntry.userName !== currentUser?.name) {
+        showToast(`Opening inherited from ${latestEntry.userName}'s latest closing`, 'info');
+      }
     }
     calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
+    calcStock();
   }
+}
+
+function getUnifiedOpeningStock(productId) {
+  const entries = db_entries.filter(e => String(e.productId) === String(productId));
+  if (!entries.length) return null;
+
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const workingDate = getWorkingDate(now);
+
+  // Unified-stock rule:
+  // For night shift input, use the closing stock recorded in morning shift
+  // for the same working date and product (regardless of which user entered it).
+  if (shift === 'night') {
+    const morningEntry = entries
+      .filter(e => e.date === workingDate && e.shift === 'morning')
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date);
+        return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+      })[0];
+
+    if (morningEntry) return Number(morningEntry.closing) || 0;
+  }
+
+  // Fallback for other cases (or if no morning entry exists yet):
+  // use latest known closing for the product.
+  const latestEntry = entries.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+  })[0];
+  return latestEntry ? (Number(latestEntry.closing) || 0) : null;
+}
+
+function getLatestEntryForProduct(productId) {
+  return db_entries
+    .filter(e => String(e.productId) === String(productId))
+    .sort((a, b) => {
+      const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
+      return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+    })[0] || null;
 }
 
 function calcStock(source = 'auto') {
@@ -2606,6 +2680,7 @@ async function initApp() {
     // Show login screen if no session
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
+    checkBackendConnectionStatus();
   }
 }
 
@@ -2615,4 +2690,3 @@ if (document.readyState === 'loading') {
 } else {
   initApp();
 }
-
