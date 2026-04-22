@@ -75,14 +75,13 @@ function startProductPolling(page) {
   }, POLL_INTERVAL);
 }
 
-// ── LOCALSTORAGE HELPERS (Legacy/Config only) ────────────────────────────────
+// ── SESSION STORAGE HELPERS ──────────────────────────────────────────────────
+// We use LocalStorage ONLY for session persistence (token, user info).
+// All stock and product data is fetched fresh from the Cloud Database.
 const LS = {
   get: (k, def = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-  products: () => db_products,
-  entries: () => db_entries,
-  saveProducts: () => { }, // Handled directly via API calls now
-  saveEntries: () => { }, // Handled directly via API calls now
+  remove: (k) => localStorage.removeItem(k)
 };
 
 // ── SHIFT SYSTEM ─────────────────────────────────────────────────────────────
@@ -2294,7 +2293,10 @@ async function updateUnit() {
   if (openingInput && productId) {
     // Refresh entries from backend to ensure we have the latest closing from other users/shifts
     try {
-      db_entries = await API.getEntries();
+      const freshEntries = await API.getEntries();
+      if (freshEntries && Array.isArray(freshEntries)) {
+        db_entries = freshEntries;
+      }
     } catch (e) {
       console.warn('Failed to refresh entries for autofill:', e.message);
     }
@@ -2304,16 +2306,20 @@ async function updateUnit() {
 
     if (lastEntry) {
       // Auto-fill opening stock with the last known closing stock
+      // Ensure we treat the value as a number to avoid string issues
       openingInput.value = lastEntry.closing;
     } else {
       // If no history found, reset to empty to allow manual entry
       openingInput.value = '';
     }
     calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
+    calcStock();
   }
 }
 
-function calcStock(source = 'auto') {
+function calcStock(source = '') {
   const opVal = document.getElementById('f-opening').value;
   const reVal = document.getElementById('f-received').value;
   const daVal = document.getElementById('f-damaged').value;

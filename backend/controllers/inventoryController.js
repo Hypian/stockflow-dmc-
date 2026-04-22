@@ -13,7 +13,7 @@ const getEntries = async (req, res) => {
       FROM entries 
       JOIN products ON entries.product_id = products.id
       JOIN users ON entries.user_id = users.id
-      ORDER BY entries.created_at DESC
+      ORDER BY entries.entry_date DESC, entries.entry_time DESC, entries.created_at DESC
     `);
     res.json(result.rows);
   } catch (error) {
