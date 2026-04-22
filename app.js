@@ -239,10 +239,16 @@ function doLogout() {
   stopProductPolling();  // Stop polling before logging out
   setTimeout(() => {
     API.logout(); // Clear token over API wrapper
-    localStorage.removeItem('sf_current_session'); // Clear session metadata
-    localStorage.removeItem('sf_session_shift');  // Clear shift tracking
+    LS.remove('sf_current_session'); // Clear session metadata
+    LS.remove('sf_session_shift');  // Clear shift tracking
+    
+    // CRITICAL: Clear all in-memory data to prevent cross-user leakage
     currentUser = null;
     sessionShift = null;
+    db_products = [];
+    db_entries = [];
+    db_audit_logs = [];
+    
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('login-user').value = '';
@@ -2306,12 +2312,17 @@ async function updateUnit() {
 
     if (lastEntry) {
       // Auto-fill opening stock with the last known closing stock
-      // Ensure we treat the value as a number to avoid string issues
       openingInput.value = lastEntry.closing;
+      
+      // Optional: Inform the user where this number came from
+      if (lastEntry.userName && lastEntry.userName !== currentUser.name) {
+        showToast(`Inherited opening stock from ${lastEntry.userName}`, 'info');
+      }
     } else {
       // If no history found, reset to empty to allow manual entry
       openingInput.value = '';
     }
+    // Force recalculation immediately after auto-fill
     calcStock();
   } else if (openingInput) {
     openingInput.value = '';
