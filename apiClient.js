@@ -75,7 +75,8 @@ const API = {
       userName: e.user_name,
       productName: e.product_name,
       shift: (e.shift || '').trim().toLowerCase(),
-      total: Number(e.opening) + Number(e.received) - Number(e.damaged) - Number(e.disbursed || 0)
+      expected: (Number(e.opening) || 0) + (Number(e.received) || 0) - (Number(e.damaged) || 0) - (Number(e.disbursed) || 0),
+      total: Number(e.closing) || 0
     }));
   },
 

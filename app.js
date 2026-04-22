@@ -1036,7 +1036,7 @@ function renderAdminStockTable() {
     const filterShift = shift.trim().toLowerCase();
     if (filterShift && (e.shift || '').trim().toLowerCase() !== filterShift) return false;
     return true;
-  }).reverse();
+  });
 
   const count = document.getElementById('as-count');
   if (count) count.textContent = `${rows.length} entries`;
@@ -1456,18 +1456,24 @@ function clearAuditFilters() {
 
 function renderAuditTable() {
   const rows = getAuditFiltered();
-  // Summary cards
+  const summaryRows = rows;
+  const latestByProduct = {};
+  summaryRows.forEach(e => {
+    if (!latestByProduct[e.productId]) latestByProduct[e.productId] = e;
+  });
+  const productsList = Object.values(latestByProduct);
+
   const sumEl = document.getElementById('aud-summary');
   if (sumEl) {
-    const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
-    const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
-    const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
-    const products = [...new Set(rows.map(e => e.productId))].length;
+    const totalStock = productsList.reduce((s, p) => s + Number(p.total || 0), 0);
+    const totalDmg = summaryRows.reduce((s, e) => s + Number(e.damaged || 0), 0);
+    const totalVar = summaryRows.reduce((s, e) => s + Number(e.variance || 0), 0);
+    const productsCount = productsList.length;
     sumEl.innerHTML = `
         ${miniStat('fa-boxes-stacked', 'Total Stock', totalStock, 'text-blue-400')}
         ${miniStat('fa-triangle-exclamation', 'Total Damaged', totalDmg, 'text-red-400')}
         ${miniStat('fa-scale-unbalanced', 'Total Variance', totalVar, 'text-amber-400')}
-        ${miniStat('fa-box-open', 'Distinct Products', products, 'text-green-400')}`;
+        ${miniStat('fa-box-open', 'Distinct Products', productsCount, 'text-green-400')}`;
   }
 
   const totalPages = Math.ceil(rows.length / audPerPage) || 1;
@@ -2053,7 +2059,7 @@ function renderUserDashboard() {
         <table class="data-table" id="ud-today-table">
           <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Time</th><th></th></tr></thead>
           <tbody>
-            ${today.slice().reverse().map(e => `
+            ${today.map(e => `
             <tr>
               <td class="font-500 text-white">${e.productName}</td>
               <td class="mono">${e.opening}</td>
@@ -2485,7 +2491,7 @@ function renderUserEntriesTable() {
     if (date && e.date !== date) return false;
     if (shift && e.shift !== shift) return false;
     return true;
-  }).reverse();
+  });
 
   const count = document.getElementById('ue-count');
   if (count) count.textContent = `${rows.length} entries`;
