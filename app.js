@@ -2383,7 +2383,7 @@ function getUnifiedOpeningStock(productId) {
         return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
       })[0];
 
-    if (morningEntry) return Number(morningEntry.closing) || 0;
+    if (morningEntry) return morningEntry.closing;
   }
 
   // Fallback for other cases (or if no morning entry exists yet):
@@ -2392,7 +2392,7 @@ function getUnifiedOpeningStock(productId) {
     const dateCmp = b.date.localeCompare(a.date);
     return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
   })[0];
-  return latestEntry ? (Number(latestEntry.closing) || 0) : null;
+  return latestEntry ? latestEntry.closing : null;
 }
 
 function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {

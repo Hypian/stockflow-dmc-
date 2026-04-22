@@ -62,9 +62,9 @@ const createEntry = async (req, res) => {
         [product_id, entry_date, 'morning']
       );
       if (morningRef.rows.length > 0) {
-        finalOpening = Number(morningRef.rows[0].closing) || 0;
+        finalOpening = morningRef.rows[0].closing;
         // Re-calculate variance based on the forced opening stock
-        const expected = finalOpening + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
+        const expected = Number(finalOpening || 0) + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
         finalVariance = Number(closing || 0) - expected;
       }
     }
@@ -145,13 +145,13 @@ const updateEntry = async (req, res) => {
         [finalProductId, finalDate, 'morning']
       );
       if (morningRef.rows.length > 0) {
-        updates.opening = Number(morningRef.rows[0].closing) || 0;
+        updates.opening = morningRef.rows[0].closing;
         // Recalculate variance if we are forcing the opening
         const r = updates.received !== undefined ? updates.received : oldValues.received;
         const d = updates.disbursed !== undefined ? updates.disbursed : oldValues.disbursed;
         const dmg = updates.damaged !== undefined ? updates.damaged : oldValues.damaged;
         const cl = updates.closing !== undefined ? updates.closing : oldValues.closing;
-        const expected = updates.opening + Number(r || 0) - Number(dmg || 0) - Number(d || 0);
+        const expected = Number(updates.opening || 0) + Number(r || 0) - Number(dmg || 0) - Number(d || 0);
         updates.variance = Number(cl || 0) - expected;
       }
     }
