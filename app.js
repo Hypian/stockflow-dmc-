@@ -2347,15 +2347,16 @@ async function updateUnit() {
 
     const openingStock = getUnifiedOpeningStock(productId);
 
-    if (openingStock !== null) {
+    if (openingStock !== null && openingStock !== undefined) {
       openingInput.value = openingStock;
       
       const latestEntry = getLatestEntryForProduct(productId);
       if (latestEntry?.userName && latestEntry.userName !== currentUser?.name) {
-        showToast(`Inherited opening stock from ${latestEntry.userName}`, 'info');
+        showToast(`Auto-filled: Opening matches ${latestEntry.userName}'s closing.`, 'success');
       }
     } else {
       openingInput.value = '';
+      showToast('No previous shift closing found for this product. Please enter opening stock manually.', 'warn');
     }
     calcStock();
   } else if (openingInput) {

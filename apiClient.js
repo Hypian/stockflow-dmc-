@@ -80,12 +80,12 @@ const API = {
 
   // Helper to map DB record to frontend entry object with correct types
   mapEntry: (e) => {
-    const opening = Number(e.opening) || 0;
-    const received = Number(e.received) || 0;
-    const disbursed = Number(e.disbursed) || 0;
-    const damaged = Number(e.damaged) || 0;
-    const closing = Number(e.closing) || 0;
-    const variance = Number(e.variance) || 0;
+    const opening = e.opening === null ? null : Number(e.opening);
+    const received = e.received === null ? 0 : Number(e.received);
+    const disbursed = e.disbursed === null ? 0 : Number(e.disbursed);
+    const damaged = e.damaged === null ? 0 : Number(e.damaged);
+    const closing = e.closing === null ? null : Number(e.closing);
+    const variance = e.variance === null ? null : Number(e.variance);
 
     return {
       ...e,
