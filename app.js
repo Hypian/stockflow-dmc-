@@ -2178,6 +2178,11 @@ function editEntry(id) {
       </div>
     </div>`;
 
+  // Explicitly set values to 0 to ensure clean slate for incremental updates
+  document.getElementById('em-received').value = '0';
+  document.getElementById('em-disbursed').value = '0';
+  document.getElementById('em-damaged').value = '0';
+
   openModal();
   calcEditStock();
 }
