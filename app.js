@@ -2097,8 +2097,14 @@ function filterTodayEntries() {
   });
 }
 
-function getLatestEntryForProduct(productId, excludeEntryId = null) {
-  const entries = db_entries;
+function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {
+  let entries = db_entries;
+  
+  if (beforeDate) {
+    const cutoff = new Date(beforeDate);
+    entries = entries.filter(e => new Date(e.created_at || e.createdAt) < cutoff);
+  }
+
   // db_entries is sorted DESC by created_at in the backend
   return entries.find(e => String(e.productId) === String(productId) && String(e.id) !== String(excludeEntryId));
 }
@@ -2108,8 +2114,8 @@ function editEntry(id) {
   const e = entries.find(x => String(x.id) === String(id));
   if (!e) return;
 
-  // Find previous entry's closing stock globally
-  const lastEntry = getLatestEntryForProduct(e.productId, id);
+  // Find latest entry BEFORE this one's creation time to get correct opening
+  const lastEntry = getLatestEntryForProduct(e.productId, id, e.created_at);
   const openingStock = lastEntry ? lastEntry.closing : e.opening;
   editingEntryId = id; // Store the ID being edited
 
@@ -2276,7 +2282,7 @@ async function saveEditEntry(id, opening) {
   }
 }
 
-function updateUnit() {
+async function updateUnit() {
   const sel = document.getElementById('f-product');
   const opt = sel.options[sel.selectedIndex];
   const unit = opt?.dataset?.unit;
@@ -2286,6 +2292,13 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
+    // Refresh entries from backend to ensure we have the latest closing from other users/shifts
+    try {
+      db_entries = await API.getEntries();
+    } catch (e) {
+      console.warn('Failed to refresh entries for autofill:', e.message);
+    }
+
     // Find the latest entry for this product globally
     const lastEntry = getLatestEntryForProduct(productId);
 
