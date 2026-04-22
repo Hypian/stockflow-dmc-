@@ -1010,7 +1010,7 @@ function renderAdminStock() {
         <table class="data-table">
           <thead><tr>
             <th>Product</th><th>User</th><th>Opening</th><th>Received</th>
-            <th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th>
+            <th>Stock Out</th><th>Damaged</th><th>Expected</th><th>Closing</th><th>Variance</th>
             <th>Shift</th><th>Date</th><th>Time</th><th></th>
           </tr></thead>
           <tbody id="as-tbody"></tbody>
@@ -1053,11 +1053,11 @@ function renderAdminStockTable() {
       <td>${e.userName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-      <td class="mono">${e.closing}</td>
-      <td class="mono font-600 text-white">${e.total}</td>
-      <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+      <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
+      <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+      <td class="mono text-slate-400">${e.expected}</td>
+      <td class="mono font-600 text-white">${e.closing}</td>
+      <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
       <td>${getShiftBadgeHTML(e.shift)}</td>
       <td class="mono text-xs">${e.date}</td>
       <td class="mono text-xs text-slate-500">${e.time}</td>
@@ -1508,8 +1508,8 @@ function renderAuditTable() {
         <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
         <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
         <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-        <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
-        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-slate-400">${rows.reduce((s, e) => s + (e.expected || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + (e.closing || 0), 0)}</td>
         <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
         <td></td>
       </tr>`;
@@ -1955,8 +1955,8 @@ function renderUserDashboard() {
         <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Damaged</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + (Number(e.total) || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1 text-nowrap">Remaining Stock</div>
+        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + (Number(e.closing) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Closing Stock</div>
       </div>
     </div>
 
@@ -2061,18 +2061,18 @@ function renderUserDashboard() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table" id="ud-today-table">
-          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Time</th><th></th></tr></thead>
+          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Expected</th><th>Closing</th><th>Variance</th><th>Time</th><th></th></tr></thead>
           <tbody>
             ${today.map(e => `
             <tr>
               <td class="font-500 text-white">${e.productName}</td>
               <td class="mono">${e.opening}</td>
               <td class="mono">${e.received}</td>
-              <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
-              <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-              <td class="mono">${e.closing}</td>
-              <td class="mono font-600 text-white">${e.total}</td>
-              <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+              <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
+              <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+              <td class="mono text-slate-400">${e.expected}</td>
+              <td class="mono font-600 text-white">${e.closing}</td>
+              <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
               <td class="mono text-xs text-slate-500">${e.time}</td>
               <td>
                 <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry">
