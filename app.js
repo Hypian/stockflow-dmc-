@@ -2299,7 +2299,6 @@ async function saveEditEntry(id, opening) {
 
   try {
     const entryData = {
-      entry_date: getWorkingDate(),
       opening,
       received: totalReceived,
       damaged: totalDamaged,
