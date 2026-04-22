@@ -2111,6 +2111,7 @@ function editEntry(id) {
     })[0];
 
   const openingStock = lastEntry ? lastEntry.closing : e.opening;
+  editingEntryId = id; // Store the ID being edited
 
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
@@ -2134,23 +2135,23 @@ function editEntry(id) {
           </div>
         </div>
 
-        <!-- Input Fields -->
+        <!-- Input Fields (Incremental Adjustments) -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Received</label>
-            <input id="em-received" type="text" inputmode="numeric" class="form-input" value="${e.received}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Received</label>
+            <input id="em-received" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Out</label>
-            <input id="em-disbursed" type="text" inputmode="numeric" class="form-input" value="${e.disbursed || 0}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Stock Out</label>
+            <input id="em-disbursed" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged</label>
-            <input id="em-damaged" type="text" inputmode="numeric" class="form-input" value="${e.damaged}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Damaged</label>
+            <input id="em-damaged" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock (Physical Count)</label>
-            <input id="em-closing" type="text" inputmode="numeric" class="form-input" value="${e.closing}" oninput="calcEditStock('closing')" placeholder="0" />
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">New Closing (Physical)</label>
+            <input id="em-closing" type="text" inputmode="numeric" class="form-input" value="${e.closing}" oninput="calcEditStock('closing')" onfocus="this.select()" />
           </div>
         </div>
 
@@ -2182,23 +2183,23 @@ function editEntry(id) {
 }
 
 function calcEditStock(source = '') {
-  const reEl = document.getElementById('em-received');
-  const diEl = document.getElementById('em-disbursed');
-  const dmEl = document.getElementById('em-damaged');
+  const addRe = Number(document.getElementById('em-received')?.value || 0);
+  const addDi = Number(document.getElementById('em-disbursed')?.value || 0);
+  const addDm = Number(document.getElementById('em-damaged')?.value || 0);
   const clEl = document.getElementById('em-closing');
 
-  const received = Number(reEl?.value || 0);
-  const disbursed = Number(diEl?.value || 0);
-  const damaged = Number(dmEl?.value || 0);
+  const entry = db_entries.find(x => String(x.id) === String(editingEntryId));
+  if (!entry) return;
 
-  // Get opening from the modal display
-  const openingText = document.querySelector('.mono.text-xl.font-700.text-amber-400')?.textContent;
-  const opening = Number(openingText || 0);
+  const totalReceived = entry.received + addRe;
+  const totalDisbursed = entry.disbursed + addDi;
+  const totalDamaged = entry.damaged + addDm;
+  const opening = entry.opening;
 
-  const expected = opening + received - damaged - disbursed;
+  const expected = opening + totalReceived - totalDamaged - totalDisbursed;
   
   if (source !== 'closing') {
-    clEl.value = expected >= 0 ? expected : 0;
+    clEl.value = expected;
   }
 
   const closing = Number(clEl.value) || 0;
@@ -2221,16 +2222,18 @@ function calcEditStock(source = '') {
 }
 
 async function saveEditEntry(id, opening) {
-  const received = Number(document.getElementById('em-received')?.value || 0);
-  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
-  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
+  const addRe = Number(document.getElementById('em-received')?.value || 0);
+  const addDi = Number(document.getElementById('em-disbursed')?.value || 0);
+  const addDm = Number(document.getElementById('em-damaged')?.value || 0);
   const closing = Number(document.getElementById('em-closing')?.value || 0);
-  const variance = closing - (opening + received - damaged - disbursed);
 
-  if (received < 0 || disbursed < 0 || damaged < 0) {
-    showToast('No negative values allowed', 'error');
-    return;
-  }
+  const entry = db_entries.find(e => String(e.id) === String(id));
+  if (!entry) return;
+
+  const totalReceived = entry.received + addRe;
+  const totalDisbursed = entry.disbursed + addDi;
+  const totalDamaged = entry.damaged + addDm;
+  const variance = closing - (opening + totalReceived - totalDamaged - totalDisbursed);
 
   const btn = document.querySelector('.modal-box button.btn-primary');
   const orgHtml = btn.innerHTML;
@@ -2241,9 +2244,9 @@ async function saveEditEntry(id, opening) {
     const entryData = {
       entry_date: getWorkingDate(),
       opening,
-      received,
-      damaged,
-      disbursed,
+      received: totalReceived,
+      damaged: totalDamaged,
+      disbursed: totalDisbursed,
       closing,
       variance
     };
@@ -2279,15 +2282,11 @@ function updateUnit() {
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
     const entries = db_entries;
-    const lastEntry = entries.filter(e => e.productId === productId).sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
+    // Find the latest entry for this product globally (db_entries is already sorted newest first)
+    const lastEntry = entries.find(e => String(e.productId) === String(productId));
 
     if (lastEntry) {
-      if (!openingInput.value) {
-        openingInput.value = lastEntry.closing;
-      }
+      openingInput.value = lastEntry.closing;
     } else {
       openingInput.value = '';
     }
