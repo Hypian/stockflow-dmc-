@@ -1941,18 +1941,22 @@ function renderUserDashboard() {
     </div>
 
     <!-- Quick stats row -->
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass rounded-xl p-4 text-center">
         <div class="mono text-2xl font-700 text-white">${today.length}</div>
-        <div class="text-xs text-slate-500 mt-1">Entries Today</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Entries Today</div>
+      </div>
+      <div class="glass rounded-xl p-4 text-center border-l-4 border-brand/40">
+        <div class="mono text-2xl font-700 text-brand">${today.reduce((s, e) => s + (Number(e.disbursed) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Stock Out</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 ${today.filter(e => Number(e.damaged) > 0).length ? 'text-red-400' : 'text-green-400'}">${today.reduce((s, e) => s + Number(e.damaged || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1">Units Damaged</div>
+        <div class="mono text-2xl font-700 ${today.filter(e => Number(e.damaged) > 0).length ? 'text-red-400' : 'text-green-400'}">${today.reduce((s, e) => s + (Number(e.damaged) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Damaged</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + Number(e.total || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1">Remaining Stock</div>
+        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + (Number(e.total) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Remaining Stock</div>
       </div>
     </div>
 
@@ -2144,21 +2148,21 @@ function editEntry(id) {
             <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged</label>
             <input id="em-damaged" type="text" inputmode="numeric" class="form-input" value="${e.damaged}" oninput="calcEditStock()" placeholder="0" />
           </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock (Physical Count)</label>
+            <input id="em-closing" type="text" inputmode="numeric" class="form-input" value="${e.closing}" oninput="calcEditStock('closing')" placeholder="0" />
+          </div>
         </div>
 
         <!-- Auto-calculated Results -->
         <div class="glass rounded-xl p-4 border border-brand/30 bg-brand/10">
           <div class="grid grid-cols-3 gap-4">
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Remaining Stock</div>
+            <div class="col-span-2">
+              <div class="text-xs text-slate-400 mb-1 font-600">Calculated (Expected) Stock</div>
               <div id="em-total" class="mono text-2xl font-700 text-white">—</div>
             </div>
             <div>
-              <div class="text-xs text-slate-400 mb-1">Closing</div>
-              <div id="em-closing" class="mono text-2xl font-700 text-brand">—</div>
-            </div>
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Variance</div>
+              <div class="text-xs text-slate-400 mb-1 font-600">Variance</div>
               <div id="em-variance" class="mono text-2xl font-700 text-slate-400">—</div>
             </div>
           </div>
@@ -2177,26 +2181,34 @@ function editEntry(id) {
   calcEditStock();
 }
 
-function calcEditStock() {
-  const received = Number(document.getElementById('em-received')?.value || 0);
-  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
-  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
-  const openingEl = document.querySelector('[value*=""]');
+function calcEditStock(source = '') {
+  const reEl = document.getElementById('em-received');
+  const diEl = document.getElementById('em-disbursed');
+  const dmEl = document.getElementById('em-damaged');
+  const clEl = document.getElementById('em-closing');
+
+  const received = Number(reEl?.value || 0);
+  const disbursed = Number(diEl?.value || 0);
+  const damaged = Number(dmEl?.value || 0);
 
   // Get opening from the modal display
   const openingText = document.querySelector('.mono.text-xl.font-700.text-amber-400')?.textContent;
   const opening = Number(openingText || 0);
 
   const expected = opening + received - damaged - disbursed;
-  const closing = expected >= 0 ? expected : 0;
+  
+  if (source !== 'closing') {
+    clEl.value = expected >= 0 ? expected : 0;
+  }
+
+  const closing = Number(clEl.value) || 0;
   const variance = closing - expected;
 
   const totalEl = document.getElementById('em-total');
   const closingEl = document.getElementById('em-closing');
   const varEl = document.getElementById('em-variance');
 
-  if (totalEl) totalEl.textContent = expected >= 0 ? expected : '0';
-  if (closingEl) closingEl.textContent = closing;
+  if (totalEl) totalEl.textContent = expected;
   if (varEl) {
     if (variance === 0) {
       varEl.textContent = '✓ 0';
@@ -2212,7 +2224,7 @@ async function saveEditEntry(id, opening) {
   const received = Number(document.getElementById('em-received')?.value || 0);
   const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
   const damaged = Number(document.getElementById('em-damaged')?.value || 0);
-  const closing = Number(document.getElementById('em-closing')?.textContent || 0);
+  const closing = Number(document.getElementById('em-closing')?.value || 0);
   const variance = closing - (opening + received - damaged - disbursed);
 
   if (received < 0 || disbursed < 0 || damaged < 0) {
