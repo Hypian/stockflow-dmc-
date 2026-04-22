@@ -76,14 +76,13 @@ function startProductPolling(page) {
   }, POLL_INTERVAL);
 }
 
-// ── LOCALSTORAGE HELPERS (Legacy/Config only) ────────────────────────────────
+// ── SESSION STORAGE HELPERS ──────────────────────────────────────────────────
+// We use LocalStorage ONLY for session persistence (token, user info).
+// All stock and product data is fetched fresh from the Cloud Database.
 const LS = {
   get: (k, def = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-  products: () => db_products,
-  entries: () => db_entries,
-  saveProducts: () => { }, // Handled directly via API calls now
-  saveEntries: () => { }, // Handled directly via API calls now
+  remove: (k) => localStorage.removeItem(k)
 };
 
 // ── SHIFT SYSTEM ─────────────────────────────────────────────────────────────
@@ -241,10 +240,16 @@ function doLogout() {
   stopProductPolling();  // Stop polling before logging out
   setTimeout(() => {
     API.logout(); // Clear token over API wrapper
-    localStorage.removeItem('sf_current_session'); // Clear session metadata
-    localStorage.removeItem('sf_session_shift');  // Clear shift tracking
+    LS.remove('sf_current_session'); // Clear session metadata
+    LS.remove('sf_session_shift');  // Clear shift tracking
+    
+    // CRITICAL: Clear all in-memory data to prevent cross-user leakage
     currentUser = null;
     sessionShift = null;
+    db_products = [];
+    db_entries = [];
+    db_audit_logs = [];
+    
     document.getElementById('app-shell').classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('login-user').value = '';
@@ -1010,7 +1015,7 @@ function renderAdminStock() {
         <table class="data-table">
           <thead><tr>
             <th>Product</th><th>User</th><th>Opening</th><th>Received</th>
-            <th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th>
+            <th>Stock Out</th><th>Damaged</th><th>Expected</th><th>Closing</th><th>Variance</th>
             <th>Shift</th><th>Date</th><th>Time</th><th></th>
           </tr></thead>
           <tbody id="as-tbody"></tbody>
@@ -1032,9 +1037,11 @@ function renderAdminStockTable() {
     if (search && !`${e.productName} ${e.userName}`.toLowerCase().includes(search)) return false;
     if (date && e.date !== date) return false;
     if (user && e.userId !== Number(user)) return false;
-    if (shift && e.shift !== shift) return false;
+    // Normalize shift value from DB (trim + lowercase) before comparing
+    const filterShift = shift.trim().toLowerCase();
+    if (filterShift && (e.shift || '').trim().toLowerCase() !== filterShift) return false;
     return true;
-  }).reverse();
+  });
 
   const count = document.getElementById('as-count');
   if (count) count.textContent = `${rows.length} entries`;
@@ -1051,11 +1058,11 @@ function renderAdminStockTable() {
       <td>${e.userName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
-      <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
-      <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-      <td class="mono">${e.closing}</td>
-      <td class="mono font-600 text-white">${e.total}</td>
-      <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+      <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
+      <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+      <td class="mono text-slate-400">${e.expected}</td>
+      <td class="mono font-600 text-white">${e.closing}</td>
+      <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
       <td>${getShiftBadgeHTML(e.shift)}</td>
       <td class="mono text-xs">${e.date}</td>
       <td class="mono text-xs text-slate-500">${e.time}</td>
@@ -1429,15 +1436,15 @@ function getAuditFiltered() {
   const dateTo = (document.getElementById('aud-date-to') || {}).value || '';
   const user = (document.getElementById('aud-user') || {}).value || '';
   const prod = (document.getElementById('aud-prod') || {}).value || '';
-  const shift = (document.getElementById('aud-shift') || {}).value || '';
+  const shift = ((document.getElementById('aud-shift') || {}).value || '').trim().toLowerCase();
 
   return db_entries.filter(e => {
     if (dateFrom && e.date < dateFrom) return false;
     if (dateTo && e.date > dateTo) return false;
     if (user && String(e.userId) !== String(user)) return false;
     if (prod && String(e.productId) !== String(prod)) return false;
-    // FIX 2: Normalize shift — treat null/undefined as empty string to avoid false exclusions
-    if (shift && (e.shift || '') !== shift) return false;
+    // Normalize shift value from DB (trim + lowercase) before comparing
+    if (shift && (e.shift || '').trim().toLowerCase() !== shift) return false;
     return true;
   });
 }
@@ -1454,18 +1461,24 @@ function clearAuditFilters() {
 
 function renderAuditTable() {
   const rows = getAuditFiltered();
-  // Summary cards
+  const summaryRows = rows;
+  const latestByProduct = {};
+  summaryRows.forEach(e => {
+    if (!latestByProduct[e.productId]) latestByProduct[e.productId] = e;
+  });
+  const productsList = Object.values(latestByProduct);
+
   const sumEl = document.getElementById('aud-summary');
   if (sumEl) {
-    const totalStock = rows.reduce((s, e) => s + Number(e.total || 0), 0);
-    const totalDmg = rows.reduce((s, e) => s + Number(e.damaged || 0), 0);
-    const totalVar = rows.reduce((s, e) => s + Number(e.variance || 0), 0);
-    const products = [...new Set(rows.map(e => e.productId))].length;
+    const totalStock = productsList.reduce((s, p) => s + Number(p.total || 0), 0);
+    const totalDmg = summaryRows.reduce((s, e) => s + Number(e.damaged || 0), 0);
+    const totalVar = summaryRows.reduce((s, e) => s + Number(e.variance || 0), 0);
+    const productsCount = productsList.length;
     sumEl.innerHTML = `
         ${miniStat('fa-boxes-stacked', 'Total Stock', totalStock, 'text-blue-400')}
         ${miniStat('fa-triangle-exclamation', 'Total Damaged', totalDmg, 'text-red-400')}
         ${miniStat('fa-scale-unbalanced', 'Total Variance', totalVar, 'text-amber-400')}
-        ${miniStat('fa-box-open', 'Distinct Products', products, 'text-green-400')}`;
+        ${miniStat('fa-box-open', 'Distinct Products', productsCount, 'text-green-400')}`;
   }
 
   const totalPages = Math.ceil(rows.length / audPerPage) || 1;
@@ -1500,8 +1513,8 @@ function renderAuditTable() {
         <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
         <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
         <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-        <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
-        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-slate-400">${rows.reduce((s, e) => s + (e.expected || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + (e.closing || 0), 0)}</td>
         <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
         <td></td>
       </tr>`;
@@ -1933,18 +1946,22 @@ function renderUserDashboard() {
     </div>
 
     <!-- Quick stats row -->
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass rounded-xl p-4 text-center">
         <div class="mono text-2xl font-700 text-white">${today.length}</div>
-        <div class="text-xs text-slate-500 mt-1">Entries Today</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Entries Today</div>
+      </div>
+      <div class="glass rounded-xl p-4 text-center border-l-4 border-brand/40">
+        <div class="mono text-2xl font-700 text-brand">${today.reduce((s, e) => s + (Number(e.disbursed) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Stock Out</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 ${today.filter(e => Number(e.damaged) > 0).length ? 'text-red-400' : 'text-green-400'}">${today.reduce((s, e) => s + Number(e.damaged || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1">Units Damaged</div>
+        <div class="mono text-2xl font-700 ${today.filter(e => Number(e.damaged) > 0).length ? 'text-red-400' : 'text-green-400'}">${today.reduce((s, e) => s + (Number(e.damaged) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Damaged</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + Number(e.total || 0), 0)}</div>
-        <div class="text-xs text-slate-500 mt-1">Remaining Stock</div>
+        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + (Number(e.closing) || 0), 0)}</div>
+        <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Closing Stock</div>
       </div>
     </div>
 
@@ -2036,24 +2053,31 @@ function renderUserDashboard() {
 
     <!-- Today's entries quick view -->
     <div class="glass rounded-xl overflow-hidden">
-      <div class="flex items-center justify-between p-4 border-b border-white/5">
-        <div class="section-title">Today's Entries</div>
-        <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-white/5 gap-3">
+        <div class="flex items-center justify-between w-full sm:w-auto">
+          <div class="section-title shrink-0">Today's Entries</div>
+          <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm sm:hidden">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
+        </div>
+        <div class="search-wrap flex-1 w-full max-w-sm mx-auto sm:mx-0">
+          <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
+          <input id="ud-today-search" type="text" class="form-input" placeholder="Search products…" oninput="filterTodayEntries()" />
+        </div>
+        <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm hidden sm:flex shrink-0">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
       </div>
       <div class="overflow-x-auto">
-        <table class="data-table">
-          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Time</th><th></th></tr></thead>
+        <table class="data-table" id="ud-today-table">
+          <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Expected</th><th>Closing</th><th>Variance</th><th>Time</th><th></th></tr></thead>
           <tbody>
-            ${today.slice().reverse().map(e => `
+            ${today.map(e => `
             <tr>
               <td class="font-500 text-white">${e.productName}</td>
               <td class="mono">${e.opening}</td>
               <td class="mono">${e.received}</td>
-              <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
-              <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-              <td class="mono">${e.closing}</td>
-              <td class="mono font-600 text-white">${e.total}</td>
-              <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+              <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
+              <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+              <td class="mono text-slate-400">${e.expected}</td>
+              <td class="mono font-600 text-white">${e.closing}</td>
+              <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
               <td class="mono text-xs text-slate-500">${e.time}</td>
               <td>
                 <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry">
@@ -2068,20 +2092,37 @@ function renderUserDashboard() {
   </div>`;
 }
 
+function filterTodayEntries() {
+  const term = (document.getElementById('ud-today-search')?.value || '').toLowerCase();
+  const rows = document.querySelectorAll('#ud-today-table tbody tr');
+  rows.forEach(row => {
+    if (row.cells.length === 1) return; // Skip "No entries yet today" row
+    const prodName = row.cells[0].textContent.toLowerCase();
+    row.style.display = prodName.includes(term) ? '' : 'none';
+  });
+}
+
+function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {
+  let entries = db_entries;
+  
+  if (beforeDate) {
+    const cutoff = new Date(beforeDate);
+    entries = entries.filter(e => new Date(e.created_at || e.createdAt) < cutoff);
+  }
+
+  // db_entries is sorted DESC by created_at in the backend
+  return entries.find(e => String(e.productId) === String(productId) && String(e.id) !== String(excludeEntryId));
+}
+
 function editEntry(id) {
   const entries = db_entries;
   const e = entries.find(x => String(x.id) === String(id));
   if (!e) return;
 
-  // Find previous entry's closing stock
-  const lastEntry = entries
-    .filter(entry => entry.productId === e.productId && entry.id !== id)
-    .sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
-
+  // Find latest entry BEFORE this one's creation time to get correct opening
+  const lastEntry = getLatestEntryForProduct(e.productId, id, e.created_at);
   const openingStock = lastEntry ? lastEntry.closing : e.opening;
+  editingEntryId = id; // Store the ID being edited
 
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
@@ -2105,35 +2146,35 @@ function editEntry(id) {
           </div>
         </div>
 
-        <!-- Input Fields -->
+        <!-- Input Fields (Incremental Adjustments) -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Received</label>
-            <input id="em-received" type="text" inputmode="numeric" class="form-input" value="${e.received}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Received</label>
+            <input id="em-received" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Out</label>
-            <input id="em-disbursed" type="text" inputmode="numeric" class="form-input" value="${e.disbursed || 0}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Stock Out</label>
+            <input id="em-disbursed" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged</label>
-            <input id="em-damaged" type="text" inputmode="numeric" class="form-input" value="${e.damaged}" oninput="calcEditStock()" placeholder="0" />
+            <label class="block text-xs font-600 text-brand mb-1.5 uppercase tracking-wide">Add Damaged</label>
+            <input id="em-damaged" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
+          </div>
+          <div>
+            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">New Closing (Physical)</label>
+            <input id="em-closing" type="text" inputmode="numeric" class="form-input" value="${e.closing}" oninput="calcEditStock('closing')" onfocus="this.select()" />
           </div>
         </div>
 
         <!-- Auto-calculated Results -->
         <div class="glass rounded-xl p-4 border border-brand/30 bg-brand/10">
           <div class="grid grid-cols-3 gap-4">
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Remaining Stock</div>
+            <div class="col-span-2">
+              <div class="text-xs text-slate-400 mb-1 font-600">Calculated (Expected) Stock</div>
               <div id="em-total" class="mono text-2xl font-700 text-white">—</div>
             </div>
             <div>
-              <div class="text-xs text-slate-400 mb-1">Closing</div>
-              <div id="em-closing" class="mono text-2xl font-700 text-brand">—</div>
-            </div>
-            <div>
-              <div class="text-xs text-slate-400 mb-1">Variance</div>
+              <div class="text-xs text-slate-400 mb-1 font-600">Variance</div>
               <div id="em-variance" class="mono text-2xl font-700 text-slate-400">—</div>
             </div>
           </div>
@@ -2148,30 +2189,43 @@ function editEntry(id) {
       </div>
     </div>`;
 
+  // Explicitly set values to 0 to ensure clean slate for incremental updates
+  document.getElementById('em-received').value = '0';
+  document.getElementById('em-disbursed').value = '0';
+  document.getElementById('em-damaged').value = '0';
+
   openModal();
   calcEditStock();
 }
 
-function calcEditStock() {
-  const received = Number(document.getElementById('em-received')?.value || 0);
-  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
-  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
-  const openingEl = document.querySelector('[value*=""]');
+function calcEditStock(source = '') {
+  const addRe = Number(document.getElementById('em-received')?.value || 0);
+  const addDi = Number(document.getElementById('em-disbursed')?.value || 0);
+  const addDm = Number(document.getElementById('em-damaged')?.value || 0);
+  const clEl = document.getElementById('em-closing');
 
-  // Get opening from the modal display
-  const openingText = document.querySelector('.mono.text-xl.font-700.text-amber-400')?.textContent;
-  const opening = Number(openingText || 0);
+  const entry = db_entries.find(x => String(x.id) === String(editingEntryId));
+  if (!entry) return;
 
-  const expected = opening + received - damaged - disbursed;
-  const closing = expected >= 0 ? expected : 0;
+  const totalReceived = entry.received + addRe;
+  const totalDisbursed = entry.disbursed + addDi;
+  const totalDamaged = entry.damaged + addDm;
+  const opening = entry.opening;
+
+  const expected = opening + totalReceived - totalDamaged - totalDisbursed;
+  
+  if (source !== 'closing') {
+    clEl.value = expected;
+  }
+
+  const closing = Number(clEl.value) || 0;
   const variance = closing - expected;
 
   const totalEl = document.getElementById('em-total');
   const closingEl = document.getElementById('em-closing');
   const varEl = document.getElementById('em-variance');
 
-  if (totalEl) totalEl.textContent = expected >= 0 ? expected : '0';
-  if (closingEl) closingEl.textContent = closing;
+  if (totalEl) totalEl.textContent = expected;
   if (varEl) {
     if (variance === 0) {
       varEl.textContent = '✓ 0';
@@ -2184,16 +2238,18 @@ function calcEditStock() {
 }
 
 async function saveEditEntry(id, opening) {
-  const received = Number(document.getElementById('em-received')?.value || 0);
-  const disbursed = Number(document.getElementById('em-disbursed')?.value || 0);
-  const damaged = Number(document.getElementById('em-damaged')?.value || 0);
-  const closing = Number(document.getElementById('em-closing')?.textContent || 0);
-  const variance = closing - (opening + received - damaged - disbursed);
+  const addRe = Number(document.getElementById('em-received')?.value || 0);
+  const addDi = Number(document.getElementById('em-disbursed')?.value || 0);
+  const addDm = Number(document.getElementById('em-damaged')?.value || 0);
+  const closing = Number(document.getElementById('em-closing')?.value || 0);
 
-  if (received < 0 || disbursed < 0 || damaged < 0) {
-    showToast('No negative values allowed', 'error');
-    return;
-  }
+  const entry = db_entries.find(e => String(e.id) === String(id));
+  if (!entry) return;
+
+  const totalReceived = entry.received + addRe;
+  const totalDisbursed = entry.disbursed + addDi;
+  const totalDamaged = entry.damaged + addDm;
+  const variance = closing - (opening + totalReceived - totalDamaged - totalDisbursed);
 
   const btn = document.querySelector('.modal-box button.btn-primary');
   const orgHtml = btn.innerHTML;
@@ -2202,11 +2258,11 @@ async function saveEditEntry(id, opening) {
 
   try {
     const entryData = {
-      date: getWorkingDate(),
+      entry_date: getWorkingDate(),
       opening,
-      received,
-      damaged,
-      disbursed,
+      received: totalReceived,
+      damaged: totalDamaged,
+      disbursed: totalDisbursed,
       closing,
       variance
     };
@@ -2252,6 +2308,29 @@ async function updateUnit() {
     const openingStock = getUnifiedOpeningStock(productId);
 
     if (openingStock === null) {
+    // Refresh entries from backend to ensure we have the latest closing from other users/shifts
+    try {
+      const freshEntries = await API.getEntries();
+      if (freshEntries && Array.isArray(freshEntries)) {
+        db_entries = freshEntries;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh entries for autofill:', e.message);
+    }
+
+    // Find the latest entry for this product globally
+    const lastEntry = getLatestEntryForProduct(productId);
+
+    if (lastEntry) {
+      // Auto-fill opening stock with the last known closing stock
+      openingInput.value = lastEntry.closing;
+      
+      // Optional: Inform the user where this number came from
+      if (lastEntry.userName && lastEntry.userName !== currentUser.name) {
+        showToast(`Inherited opening stock from ${lastEntry.userName}`, 'info');
+      }
+    } else {
+      // If no history found, reset to empty to allow manual entry
       openingInput.value = '';
     } else {
       openingInput.value = openingStock;
@@ -2261,6 +2340,10 @@ async function updateUnit() {
         showToast(`Opening inherited from ${latestEntry.userName}'s latest closing`, 'info');
       }
     }
+    // Force recalculation immediately after auto-fill
+    calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
     calcStock();
   } else if (openingInput) {
     openingInput.value = '';
@@ -2309,6 +2392,7 @@ function getLatestEntryForProduct(productId) {
 }
 
 function calcStock(source = 'auto') {
+function calcStock(source = '') {
   const opVal = document.getElementById('f-opening').value;
   const reVal = document.getElementById('f-received').value;
   const daVal = document.getElementById('f-damaged').value;
@@ -2473,7 +2557,7 @@ function renderUserEntries() {
           <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
           <input id="ue-search" type="text" class="form-input" placeholder="Search products…" oninput="debouncedUserEntriesTable()" />
         </div>
-        <input id="ue-date" type="date" class="form-input" onchange="renderUserEntriesTable()" />
+        <input id="ue-date" type="date" class="form-input" value="${getWorkingDate()}" onchange="renderUserEntriesTable()" />
         <select id="ue-shift" class="form-input" onchange="renderUserEntriesTable()">
           <option value="">All Shifts</option>
           <option value="morning">Morning Shift</option>
@@ -2516,7 +2600,7 @@ function renderUserEntriesTable() {
     if (date && e.date !== date) return false;
     if (shift && e.shift !== shift) return false;
     return true;
-  }).reverse();
+  });
 
   const count = document.getElementById('ue-count');
   if (count) count.textContent = `${rows.length} entries`;
@@ -2619,9 +2703,7 @@ async function initApp() {
   const token = API.getToken();
   const savedShift = LS.get('sf_session_shift');
 
-  // Hide loading splash
   const splash = document.getElementById('loading-splash');
-  if (splash) splash.classList.add('hidden');
 
   if (session && session.id && token) {
     currentUser = session;
@@ -2651,9 +2733,12 @@ async function initApp() {
       }
     } catch (e) {
       console.warn('Background session sync failed:', e.message);
+    } finally {
+      if (splash) splash.classList.add('hidden');
     }
   } else {
     // Show login screen if no session
+    if (splash) splash.classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
   }

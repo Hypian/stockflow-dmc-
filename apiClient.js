@@ -33,6 +33,14 @@ const API = {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
       const data = await response.json();
       
+      if (response.status === 401) {
+        // Token expired or invalid - clear session and reload
+        API.logout();
+        localStorage.removeItem('sf_current_session');
+        window.location.reload(); 
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'API Request Failed');
       }
@@ -61,41 +69,43 @@ const API = {
     localStorage.removeItem('sf_token');
   },
 
-  // ── INVENTORY ENTRIES ──────────────────────────────────────────
-  getEntries: async () => {
-    const data = await API.request('/inventory/entries', 'GET');
-    return data.map(e => ({
+  // Helper to map DB record to frontend entry object with correct types
+  mapEntry: (e) => {
+    const opening = Number(e.opening) || 0;
+    const received = Number(e.received) || 0;
+    const disbursed = Number(e.disbursed) || 0;
+    const damaged = Number(e.damaged) || 0;
+    const closing = Number(e.closing) || 0;
+    const variance = Number(e.variance) || 0;
+
+    return {
       ...e,
+      opening, received, disbursed, damaged, closing, variance,
       userId: e.user_id,
       productId: e.product_id,
       date: e.entry_date,
       time: e.entry_time,
       userName: e.user_name,
       productName: e.product_name,
-      total: Number(e.opening) + Number(e.received) - Number(e.damaged) - Number(e.disbursed || 0)
-    }));
+      shift: (e.shift || '').trim().toLowerCase(),
+      expected: opening + received - damaged - disbursed,
+      total: closing
+    };
+  },
+
+  getEntries: async () => {
+    const data = await API.request('/inventory/entries', 'GET');
+    return data.map(API.mapEntry);
   },
 
   createEntry: async (entryData) => {
     const res = await API.request('/inventory/entries', 'POST', entryData);
-    return { 
-      ...res, 
-      userId: res.user_id,
-      productId: res.product_id, 
-      date: res.entry_date,
-      time: res.entry_time 
-    };
+    return API.mapEntry(res);
   },
 
   updateEntry: async (id, updateData) => {
     const res = await API.request(`/inventory/entries/${id}`, 'PUT', updateData);
-    return { 
-      ...res, 
-      userId: res.user_id,
-      productId: res.product_id, 
-      date: res.entry_date,
-      time: res.entry_time 
-    };
+    return API.mapEntry(res);
   },
 
   deleteEntry: async (id) => {
