@@ -2038,12 +2038,19 @@ function renderUserDashboard() {
 
     <!-- Today's entries quick view -->
     <div class="glass rounded-xl overflow-hidden">
-      <div class="flex items-center justify-between p-4 border-b border-white/5">
-        <div class="section-title">Today's Entries</div>
-        <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-white/5 gap-3">
+        <div class="flex items-center justify-between w-full sm:w-auto">
+          <div class="section-title shrink-0">Today's Entries</div>
+          <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm sm:hidden">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
+        </div>
+        <div class="search-wrap flex-1 w-full max-w-sm mx-auto sm:mx-0">
+          <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
+          <input id="ud-today-search" type="text" class="form-input" placeholder="Search products…" oninput="filterTodayEntries()" />
+        </div>
+        <button onclick="navigateTo('user-entries')" class="btn btn-ghost btn-sm hidden sm:flex shrink-0">View All <i class="fa-solid fa-arrow-right text-xs ml-1"></i></button>
       </div>
       <div class="overflow-x-auto">
-        <table class="data-table">
+        <table class="data-table" id="ud-today-table">
           <thead><tr><th>Product</th><th>Opening</th><th>Received</th><th>Stock Out</th><th>Damaged</th><th>Closing</th><th>Remaining</th><th>Variance</th><th>Time</th><th></th></tr></thead>
           <tbody>
             ${today.slice().reverse().map(e => `
@@ -2068,6 +2075,16 @@ function renderUserDashboard() {
       </div>
     </div>
   </div>`;
+}
+
+function filterTodayEntries() {
+  const term = (document.getElementById('ud-today-search')?.value || '').toLowerCase();
+  const rows = document.querySelectorAll('#ud-today-table tbody tr');
+  rows.forEach(row => {
+    if (row.cells.length === 1) return; // Skip "No entries yet today" row
+    const prodName = row.cells[0].textContent.toLowerCase();
+    row.style.display = prodName.includes(term) ? '' : 'none';
+  });
 }
 
 function editEntry(id) {
