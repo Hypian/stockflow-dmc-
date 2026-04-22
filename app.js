@@ -2221,7 +2221,7 @@ async function saveEditEntry(id, opening) {
 
   try {
     const entryData = {
-      date: getWorkingDate(),
+      entry_date: getWorkingDate(),
       opening,
       received,
       damaged,
@@ -2588,9 +2588,7 @@ async function initApp() {
   const token = API.getToken();
   const savedShift = LS.get('sf_session_shift');
 
-  // Hide loading splash
   const splash = document.getElementById('loading-splash');
-  if (splash) splash.classList.add('hidden');
 
   if (session && session.id && token) {
     currentUser = session;
@@ -2620,9 +2618,12 @@ async function initApp() {
       }
     } catch (e) {
       console.warn('Background session sync failed:', e.message);
+    } finally {
+      if (splash) splash.classList.add('hidden');
     }
   } else {
     // Show login screen if no session
+    if (splash) splash.classList.add('hidden');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
   }

@@ -27,6 +27,14 @@ const API = {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
       const data = await response.json();
       
+      if (response.status === 401) {
+        // Token expired or invalid - clear session and reload
+        API.logout();
+        localStorage.removeItem('sf_current_session');
+        window.location.reload(); 
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'API Request Failed');
       }
