@@ -51,11 +51,29 @@ const createEntry = async (req, res) => {
       });
     }
 
+    // ── MANDATORY HANDOVER LOGIC ──
+    // Rule: Night shift opening MUST equal Morning shift closing for the same product and date.
+    let finalOpening = opening;
+    let finalVariance = variance;
+
+    if (shift === 'night') {
+      const morningRef = await query(
+        'SELECT closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
+        [product_id, entry_date, 'morning']
+      );
+      if (morningRef.rows.length > 0) {
+        finalOpening = Number(morningRef.rows[0].closing) || 0;
+        // Re-calculate variance based on the forced opening stock
+        const expected = finalOpening + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
+        finalVariance = Number(closing || 0) - expected;
+      }
+    }
+
     const newEntry = await query(
       `INSERT INTO entries 
       (product_id, user_id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [product_id, req.user.id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time]
+      [product_id, req.user.id, finalOpening, received, disbursed, damaged, closing, finalVariance, shift, entry_date, entry_time]
     );
 
     const record = newEntry.rows[0];
@@ -115,6 +133,28 @@ const updateEntry = async (req, res) => {
     }
     
     const oldValues = existingResult.rows[0];
+
+    // ── MANDATORY HANDOVER LOGIC (For Updates) ──
+    const finalShift = updates.shift || oldValues.shift;
+    const finalDate = updates.entry_date || oldValues.entry_date;
+    const finalProductId = updates.product_id || oldValues.product_id;
+
+    if (finalShift === 'night') {
+      const morningRef = await query(
+        'SELECT closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
+        [finalProductId, finalDate, 'morning']
+      );
+      if (morningRef.rows.length > 0) {
+        updates.opening = Number(morningRef.rows[0].closing) || 0;
+        // Recalculate variance if we are forcing the opening
+        const r = updates.received !== undefined ? updates.received : oldValues.received;
+        const d = updates.disbursed !== undefined ? updates.disbursed : oldValues.disbursed;
+        const dmg = updates.damaged !== undefined ? updates.damaged : oldValues.damaged;
+        const cl = updates.closing !== undefined ? updates.closing : oldValues.closing;
+        const expected = updates.opening + Number(r || 0) - Number(dmg || 0) - Number(d || 0);
+        updates.variance = Number(cl || 0) - expected;
+      }
+    }
 
     // Build the dynamic update query based on provided fields
     const keys = Object.keys(updates).filter(key => allowedFields.has(key));
