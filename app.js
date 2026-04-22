@@ -222,8 +222,12 @@ async function doLogin() {
 
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-shell').classList.remove('hidden');
+    
+    // Explicitly update all user-facing name displays immediately
+    currentUser = LS.get('sf_current_session');
     buildSidebar();
     startClock();
+    
     navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
     showToast(`Welcome back, ${currentUser.name.split(' ')[0]}! 👋`, 'success');
   } catch (error) {
@@ -2723,10 +2727,12 @@ async function initApp() {
     currentUser = session;
     sessionShift = savedShift;  // Restore shift from previous session
 
+    // Ensure sidebar is built with the session name before showing the app
+    buildSidebar();
+    
     // Show app immediately with any cached data
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-shell').classList.remove('hidden');
-    buildSidebar();
     startClock();
     navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
 
