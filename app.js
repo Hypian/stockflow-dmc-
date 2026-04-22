@@ -2097,19 +2097,19 @@ function filterTodayEntries() {
   });
 }
 
+function getLatestEntryForProduct(productId, excludeEntryId = null) {
+  const entries = db_entries;
+  // db_entries is sorted DESC by created_at in the backend
+  return entries.find(e => String(e.productId) === String(productId) && String(e.id) !== String(excludeEntryId));
+}
+
 function editEntry(id) {
   const entries = db_entries;
   const e = entries.find(x => String(x.id) === String(id));
   if (!e) return;
 
-  // Find previous entry's closing stock
-  const lastEntry = entries
-    .filter(entry => entry.productId === e.productId && entry.id !== id)
-    .sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
-
+  // Find previous entry's closing stock globally
+  const lastEntry = getLatestEntryForProduct(e.productId, id);
   const openingStock = lastEntry ? lastEntry.closing : e.opening;
   editingEntryId = id; // Store the ID being edited
 
@@ -2286,13 +2286,14 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    const entries = db_entries;
-    // Find the latest entry for this product globally (db_entries is already sorted newest first)
-    const lastEntry = entries.find(e => String(e.productId) === String(productId));
+    // Find the latest entry for this product globally
+    const lastEntry = getLatestEntryForProduct(productId);
 
     if (lastEntry) {
+      // Auto-fill opening stock with the last known closing stock
       openingInput.value = lastEntry.closing;
     } else {
+      // If no history found, reset to empty to allow manual entry
       openingInput.value = '';
     }
     calcStock();
