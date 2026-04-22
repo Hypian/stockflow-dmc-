@@ -66,6 +66,7 @@ const API = {
       time: e.entry_time,
       userName: e.user_name,
       productName: e.product_name,
+      shift: (e.shift || '').trim().toLowerCase(),
       total: Number(e.opening) + Number(e.received) - Number(e.damaged) - Number(e.disbursed || 0)
     }));
   },

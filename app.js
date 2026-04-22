@@ -1032,7 +1032,9 @@ function renderAdminStockTable() {
     if (search && !`${e.productName} ${e.userName}`.toLowerCase().includes(search)) return false;
     if (date && e.date !== date) return false;
     if (user && e.userId !== Number(user)) return false;
-    if (shift && e.shift !== shift) return false;
+    // Normalize shift value from DB (trim + lowercase) before comparing
+    const filterShift = shift.trim().toLowerCase();
+    if (filterShift && (e.shift || '').trim().toLowerCase() !== filterShift) return false;
     return true;
   }).reverse();
 
@@ -1429,15 +1431,15 @@ function getAuditFiltered() {
   const dateTo = (document.getElementById('aud-date-to') || {}).value || '';
   const user = (document.getElementById('aud-user') || {}).value || '';
   const prod = (document.getElementById('aud-prod') || {}).value || '';
-  const shift = (document.getElementById('aud-shift') || {}).value || '';
+  const shift = ((document.getElementById('aud-shift') || {}).value || '').trim().toLowerCase();
 
   return db_entries.filter(e => {
     if (dateFrom && e.date < dateFrom) return false;
     if (dateTo && e.date > dateTo) return false;
     if (user && String(e.userId) !== String(user)) return false;
     if (prod && String(e.productId) !== String(prod)) return false;
-    // FIX 2: Normalize shift — treat null/undefined as empty string to avoid false exclusions
-    if (shift && (e.shift || '') !== shift) return false;
+    // Normalize shift value from DB (trim + lowercase) before comparing
+    if (shift && (e.shift || '').trim().toLowerCase() !== shift) return false;
     return true;
   });
 }
