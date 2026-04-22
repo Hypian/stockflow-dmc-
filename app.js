@@ -3,13 +3,14 @@
   ════════════════════════════════════════════════════════════════════════════ */
 
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
-const USERS = [
-  { id: 1, username: 'rusine', password: 'rusine123', role: 'admin', name: 'Rusine Peggy', avatar: 'RP' },
-  { id: 2, username: 'john', password: 'john123', role: 'user', name: 'John Rwamanywa', avatar: 'JR' },
-  { id: 3, username: 'binama', password: 'binama123', role: 'user', name: 'Binama David', avatar: 'BD' },
-];
-
-const DEFAULT_PRODUCTS = [];
+function getKnownUsers() {
+  const map = new Map();
+  db_entries.forEach(e => {
+    if (!e?.userId || !e?.userName) return;
+    map.set(String(e.userId), { id: e.userId, name: e.userName, role: 'user' });
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -740,7 +741,6 @@ function renderAdminHome() {
   const today = entries.filter(e => e.date === getWorkingDate());
   const totalDmg = entries.reduce((s, e) => s + Number(e.damaged || 0), 0);
   const todayDmg = today.reduce((s, e) => s + Number(e.damaged || 0), 0);
-  const users = USERS.filter(u => u.role === 'user');
 
   return `
   <div class="stagger space-y-6">
@@ -990,7 +990,7 @@ function renderAdminStock() {
         <input id="as-date" type="date" class="form-input" onchange="renderAdminStockTable()" />
         <select id="as-user" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Users</option>
-          ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+          ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
         </select>
         <select id="as-shift" class="form-input" onchange="renderAdminStockTable()">
           <option value="">All Shifts</option>
@@ -1333,7 +1333,7 @@ function renderAuditEntriesView() {
           <label class="text-xs text-slate-500 mb-1 block">User</label>
           <select id="aud-user" class="form-input" onchange="renderAuditTable()">
             <option value="">All Users</option>
-            ${USERS.filter(u => u.role === 'user').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+            ${getKnownUsers().map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
           </select>
         </div>
         <div>
@@ -2615,4 +2615,3 @@ if (document.readyState === 'loading') {
 } else {
   initApp();
 }
-
