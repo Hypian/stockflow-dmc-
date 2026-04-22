@@ -2442,7 +2442,7 @@ function renderUserEntries() {
           <i class="fa-solid fa-magnifying-glass search-icon text-xs"></i>
           <input id="ue-search" type="text" class="form-input" placeholder="Search products…" oninput="debouncedUserEntriesTable()" />
         </div>
-        <input id="ue-date" type="date" class="form-input" onchange="renderUserEntriesTable()" />
+        <input id="ue-date" type="date" class="form-input" value="${getWorkingDate()}" onchange="renderUserEntriesTable()" />
         <select id="ue-shift" class="form-input" onchange="renderUserEntriesTable()">
           <option value="">All Shifts</option>
           <option value="morning">Morning Shift</option>
