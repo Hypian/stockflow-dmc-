@@ -2231,7 +2231,7 @@ async function saveEditEntry(id, opening) {
   }
 }
 
-function updateUnit() {
+async function updateUnit() {
   const sel = document.getElementById('f-product');
   const opt = sel.options[sel.selectedIndex];
   const unit = opt?.dataset?.unit;
@@ -2241,10 +2241,29 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    const openingStock = getUnifiedOpeningStock(productId);
-    if (!openingInput.value) {
-      openingInput.value = openingStock === null ? '' : openingStock;
+    // Refresh entries from backend to include latest values from other users/shifts.
+    try {
+      const freshEntries = await API.getEntries();
+      if (Array.isArray(freshEntries)) db_entries = freshEntries;
+    } catch (e) {
+      console.warn('Failed to refresh entries for opening autofill:', e?.message || e);
     }
+
+    const openingStock = getUnifiedOpeningStock(productId);
+
+    if (openingStock === null) {
+      openingInput.value = '';
+    } else {
+      openingInput.value = openingStock;
+
+      const latestEntry = getLatestEntryForProduct(productId);
+      if (latestEntry?.userName && latestEntry.userName !== currentUser?.name) {
+        showToast(`Opening inherited from ${latestEntry.userName}'s latest closing`, 'info');
+      }
+    }
+    calcStock();
+  } else if (openingInput) {
+    openingInput.value = '';
     calcStock();
   }
 }
@@ -2278,6 +2297,15 @@ function getUnifiedOpeningStock(productId) {
     return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
   })[0];
   return latestEntry ? (Number(latestEntry.closing) || 0) : null;
+}
+
+function getLatestEntryForProduct(productId) {
+  return db_entries
+    .filter(e => String(e.productId) === String(productId))
+    .sort((a, b) => {
+      const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
+      return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+    })[0] || null;
 }
 
 function calcStock(source = 'auto') {
