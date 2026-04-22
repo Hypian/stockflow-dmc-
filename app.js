@@ -2241,21 +2241,43 @@ function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    const entries = db_entries;
-    const lastEntry = entries.filter(e => e.productId === productId).sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
-
-    if (lastEntry) {
-      if (!openingInput.value) {
-        openingInput.value = lastEntry.closing;
-      }
-    } else {
-      openingInput.value = '';
+    const openingStock = getUnifiedOpeningStock(productId);
+    if (!openingInput.value) {
+      openingInput.value = openingStock === null ? '' : openingStock;
     }
     calcStock();
   }
+}
+
+function getUnifiedOpeningStock(productId) {
+  const entries = db_entries.filter(e => String(e.productId) === String(productId));
+  if (!entries.length) return null;
+
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const workingDate = getWorkingDate(now);
+
+  // Unified-stock rule:
+  // For night shift input, use the closing stock recorded in morning shift
+  // for the same working date and product (regardless of which user entered it).
+  if (shift === 'night') {
+    const morningEntry = entries
+      .filter(e => e.date === workingDate && e.shift === 'morning')
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date);
+        return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+      })[0];
+
+    if (morningEntry) return Number(morningEntry.closing) || 0;
+  }
+
+  // Fallback for other cases (or if no morning entry exists yet):
+  // use latest known closing for the product.
+  const latestEntry = entries.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+  })[0];
+  return latestEntry ? (Number(latestEntry.closing) || 0) : null;
 }
 
 function calcStock(source = 'auto') {
