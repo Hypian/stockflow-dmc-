@@ -58,13 +58,18 @@ const createEntry = async (req, res) => {
 
     if (shift === 'night') {
       const morningRef = await query(
-        'SELECT closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
+        'SELECT opening, received, damaged, disbursed, closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
         [product_id, entry_date, 'morning']
       );
       if (morningRef.rows.length > 0) {
-        finalOpening = morningRef.rows[0].closing;
+        const m = morningRef.rows[0];
+        // Calculate the "Remaining" (Expected) stock from the morning shift
+        const morningExpected = Number(m.opening || 0) + Number(m.received || 0) - Number(m.damaged || 0) - Number(m.disbursed || 0);
+        
+        finalOpening = morningExpected;
+        
         // Re-calculate variance based on the forced opening stock
-        const expected = Number(finalOpening || 0) + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
+        const expected = finalOpening + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
         finalVariance = Number(closing || 0) - expected;
       }
     }
@@ -141,11 +146,16 @@ const updateEntry = async (req, res) => {
 
     if (finalShift === 'night') {
       const morningRef = await query(
-        'SELECT closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
+        'SELECT opening, received, damaged, disbursed, closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
         [finalProductId, finalDate, 'morning']
       );
       if (morningRef.rows.length > 0) {
-        updates.opening = morningRef.rows[0].closing;
+        const m = morningRef.rows[0];
+        // Calculate the "Remaining" (Expected) stock from the morning shift
+        const morningExpected = Number(m.opening || 0) + Number(m.received || 0) - Number(m.damaged || 0) - Number(m.disbursed || 0);
+        
+        updates.opening = morningExpected;
+
         // Recalculate variance if we are forcing the opening
         const r = updates.received !== undefined ? updates.received : oldValues.received;
         const d = updates.disbursed !== undefined ? updates.disbursed : oldValues.disbursed;

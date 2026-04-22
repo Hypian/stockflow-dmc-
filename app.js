@@ -2384,16 +2384,19 @@ function getUnifiedOpeningStock(productId) {
         return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
       })[0];
 
-    if (morningEntry) return morningEntry.closing;
+    if (morningEntry) {
+      // Calculate "Remaining" (Expected) from the morning entry
+      return Number(morningEntry.opening || 0) + Number(morningEntry.received || 0) - Number(morningEntry.damaged || 0) - Number(morningEntry.disbursed || 0);
+    }
   }
 
   // Fallback for other cases (or if no morning entry exists yet):
-  // use latest known closing for the product globally.
+  // use latest known "Remaining" for the product globally.
   const latestEntry = entries.sort((a, b) => {
     const dateCmp = b.date.localeCompare(a.date);
     return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
   })[0];
-  return latestEntry ? latestEntry.closing : null;
+  return latestEntry ? (Number(latestEntry.opening || 0) + Number(latestEntry.received || 0) - Number(latestEntry.damaged || 0) - Number(latestEntry.disbursed || 0)) : null;
 }
 
 function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {
