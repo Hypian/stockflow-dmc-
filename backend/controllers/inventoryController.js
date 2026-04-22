@@ -7,26 +7,14 @@ const { logAudit } = require('../services/auditService');
 const getEntries = async (req, res) => {
   try {
     let result;
-    if (req.user.role === 'admin') {
-      // Admins see everything
-      result = await query(`
-        SELECT entries.*, products.name as product_name, products.unit, users.name as user_name 
-        FROM entries 
-        JOIN products ON entries.product_id = products.id
-        JOIN users ON entries.user_id = users.id
-        ORDER BY entries.created_at DESC
-      `);
-    } else {
-      // Users only see their own entries
-      result = await query(`
-        SELECT entries.*, products.name as product_name, products.unit, users.name as user_name 
-        FROM entries 
-        JOIN products ON entries.product_id = products.id
-        JOIN users ON entries.user_id = users.id
-        WHERE entries.user_id = $1 
-        ORDER BY entries.created_at DESC
-      `, [req.user.id]);
-    }
+    // Both admins and users can now see all entries to support unified opening/closing stock
+    result = await query(`
+      SELECT entries.*, products.name as product_name, products.unit, users.name as user_name 
+      FROM entries 
+      JOIN products ON entries.product_id = products.id
+      JOIN users ON entries.user_id = users.id
+      ORDER BY entries.entry_date DESC, entries.entry_time DESC, entries.created_at DESC
+    `);
     res.json(result.rows);
   } catch (error) {
     console.error('getEntries Error:', error);
