@@ -187,11 +187,9 @@ async function doLogin() {
   btn.disabled = true;
 
   try {
-    const backendOk = await checkBackendConnectionStatus();
-    if (!backendOk) {
-      showToast('Cannot sign in while backend is unreachable.', 'error');
-      return;
-    }
+    // Update status UI in background
+    checkBackendConnectionStatus();
+    
     const data = await API.login(u, p);
     const now = new Date();
     const shift = getCurrentShift(now);
