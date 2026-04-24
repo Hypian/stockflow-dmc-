@@ -2064,7 +2064,7 @@ function openReportModal(type) {
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">Start Date</label>
-            <input id="rep-start" type="date" class="form-input" value="${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}" />
+            <input id="rep-start" type="date" class="form-input" value="${new Date().toISOString().split('T')[0]}" />
           </div>
           <div>
             <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">End Date</label>
@@ -2142,6 +2142,10 @@ async function generateReport(type) {
 
     const res = await API.getReport(type, params);
     
+    if (!res || !res.data) {
+      throw new Error('No data returned from server');
+    }
+
     if (format === 'csv') {
       downloadCSV(type, res.data, start, end);
     } else {
@@ -2151,7 +2155,8 @@ async function generateReport(type) {
     showToast('Report generated successfully', 'success');
     closeModal();
   } catch (error) {
-    showToast(error.message, 'error');
+    console.error('Report Error:', error);
+    showToast(error.message || 'Failed to generate report', 'error');
   } finally {
     btn.innerHTML = orgHtml;
     btn.disabled = false;

@@ -34,13 +34,19 @@ const getDamageReport = async (req, res) => {
 
     const result = await query(sql, params);
     
+    // Cast results to numbers for safer aggregation
+    const data = result.rows.map(r => ({
+      ...r,
+      quantity: Number(r.quantity || 0)
+    }));
+
     // Summary
     const summary = {
-      totalDamaged: result.rows.reduce((s, r) => s + Number(r.quantity), 0),
+      totalDamaged: data.reduce((s, r) => s + r.quantity, 0),
       period: `${startDate || 'All time'} to ${endDate || 'Present'}`
     };
 
-    res.json({ data: result.rows, summary });
+    res.json({ data, summary });
   } catch (error) {
     console.error('getDamageReport Error:', error);
     res.status(500).json({ error: 'Failed to generate damage report' });
@@ -58,11 +64,11 @@ const getStockComparison = async (req, res) => {
     let dateFilter = '';
     if (startDate) {
       params.push(startDate);
-      dateFilter += ` AND entry_date >= $${params.length}`;
+      dateFilter += ` AND e.entry_date >= $${params.length}`;
     }
     if (endDate) {
       params.push(endDate);
-      dateFilter += ` AND entry_date <= $${params.length}`;
+      dateFilter += ` AND e.entry_date <= $${params.length}`;
     }
 
     const sql = `
@@ -79,13 +85,20 @@ const getStockComparison = async (req, res) => {
 
     const result = await query(sql, params);
     
+    const data = result.rows.map(r => ({
+      ...r,
+      total_in: Number(r.total_in || 0),
+      total_out: Number(r.total_out || 0),
+      net_movement: Number(r.net_movement || 0)
+    }));
+
     const summary = {
-      totalIn: result.rows.reduce((s, r) => s + Number(r.total_in), 0),
-      totalOut: result.rows.reduce((s, r) => s + Number(r.total_out), 0),
-      netMovement: result.rows.reduce((s, r) => s + Number(r.net_movement), 0)
+      totalIn: data.reduce((s, r) => s + r.total_in, 0),
+      totalOut: data.reduce((s, r) => s + r.total_out, 0),
+      netMovement: data.reduce((s, r) => s + r.net_movement, 0)
     };
 
-    res.json({ data: result.rows, summary });
+    res.json({ data, summary });
   } catch (error) {
     console.error('getStockComparison Error:', error);
     res.status(500).json({ error: 'Failed to generate comparison report' });
@@ -108,7 +121,7 @@ const getInventorySummary = async (req, res) => {
           FROM entries
           GROUP BY product_id
       )
-      SELECT p.name, p.unit, COALESCE(le.closing, 0) as current_stock, hs.max_stock
+      SELECT p.name, p.unit, COALESCE(le.closing, 0)::FLOAT as current_stock, hs.max_stock::FLOAT
       FROM products p
       LEFT JOIN LatestEntries le ON p.id = le.product_id
       LEFT JOIN HistoricalStats hs ON p.id = hs.product_id
@@ -144,11 +157,11 @@ const getMovementTrends = async (req, res) => {
         let dateFilter = '';
         if (startDate) {
             params.push(startDate);
-            dateFilter += ` AND entry_date >= $${params.length}`;
+            dateFilter += ` AND e.entry_date >= $${params.length}`;
         }
         if (endDate) {
             params.push(endDate);
-            dateFilter += ` AND entry_date <= $${params.length}`;
+            dateFilter += ` AND e.entry_date <= $${params.length}`;
         }
 
         const sql = `
@@ -178,11 +191,11 @@ const getLossReport = async (req, res) => {
         let dateFilter = '';
         if (startDate) {
             params.push(startDate);
-            dateFilter += ` AND entry_date >= $${params.length}`;
+            dateFilter += ` AND e.entry_date >= $${params.length}`;
         }
         if (endDate) {
             params.push(endDate);
-            dateFilter += ` AND entry_date <= $${params.length}`;
+            dateFilter += ` AND e.entry_date <= $${params.length}`;
         }
 
         const sql = `
@@ -196,7 +209,14 @@ const getLossReport = async (req, res) => {
             ORDER BY (SUM(e.damaged) + ABS(SUM(CASE WHEN e.variance < 0 THEN e.variance ELSE 0 END))) DESC
         `;
         const result = await query(sql, params);
-        res.json({ data: result.rows });
+        
+        const data = result.rows.map(r => ({
+          ...r,
+          damages: Number(r.damages || 0),
+          shrinkage: Number(r.shrinkage || 0)
+        }));
+
+        res.json({ data });
     } catch (error) {
         console.error('getLossReport Error:', error);
         res.status(500).json({ error: 'Failed to generate loss report' });
