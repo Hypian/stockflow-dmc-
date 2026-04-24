@@ -1949,7 +1949,308 @@ function renderAdminAnalytics() {
     })()}
       </div>
     </div>
+
+    <!-- Export / Reports Section -->
+    <div class="glass rounded-xl p-5">
+      <div class="section-title mb-1">Export / Reports</div>
+      <div class="section-sub mb-6">Generate and download detailed inventory reports</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Damage Report -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
+              <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-white">Damage Reports</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Historical damage logs</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('damages')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+
+        <!-- Stock Comparison -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+              <i class="fa-solid fa-right-left text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-white">Stock In vs Out</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Comparison summary</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('comparison')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+
+        <!-- Inventory Summary -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400">
+              <i class="fa-solid fa-clipboard-list text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-white">Inventory Summary</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Current levels & alerts</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('summary')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+
+        <!-- Movement Trends -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
+              <i class="fa-solid fa-chart-line text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-white">Movement Trends</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Time-series movement</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('trends')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+
+        <!-- Loss & Adjustment -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
+              <i class="fa-solid fa-scale-unbalanced text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-white">Loss & Adjustment</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Shrinkage tracking</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('loss')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+      </div>
+    </div>
   </div>`;
+}
+
+function openReportModal(type) {
+  const titles = {
+    'damages': 'Damage Report Export',
+    'comparison': 'Stock In vs Out Export',
+    'summary': 'Inventory Summary Export',
+    'trends': 'Movement Trends Export',
+    'loss': 'Loss & Adjustment Export'
+  };
+
+  const hasDateRange = ['damages', 'comparison', 'trends', 'loss'].includes(type);
+  const hasProductFilter = ['damages'].includes(type);
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-xl font-800 text-white">${titles[type]}</h3>
+          <p class="text-xs text-slate-500 mt-1">Configure filters and export format</p>
+        </div>
+        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="space-y-5">
+        ${hasDateRange ? `
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">Start Date</label>
+            <input id="rep-start" type="date" class="form-input" value="${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}" />
+          </div>
+          <div>
+            <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">End Date</label>
+            <input id="rep-end" type="date" class="form-input" value="${new Date().toISOString().split('T')[0]}" />
+          </div>
+        </div>` : ''}
+
+        ${hasProductFilter ? `
+        <div>
+          <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">Filter by Product</label>
+          <select id="rep-product" class="form-input">
+            <option value="">All Products</option>
+            ${db_products.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
+          </select>
+        </div>` : ''}
+
+        <div>
+          <label class="block text-[10px] font-800 text-slate-500 uppercase tracking-widest mb-1.5">Export Format</label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center gap-3 glass p-4 rounded-xl border border-white/5 cursor-pointer hover:border-brand/30 transition-all">
+              <input type="radio" name="rep-format" value="csv" checked class="accent-brand" />
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400">
+                  <i class="fa-solid fa-file-csv text-lg"></i>
+                </div>
+                <div>
+                  <div class="text-sm font-600 text-white">CSV</div>
+                  <div class="text-[10px] text-slate-500">Excel / Spreadsheet</div>
+                </div>
+              </div>
+            </label>
+            <label class="flex items-center gap-3 glass p-4 rounded-xl border border-white/5 cursor-pointer hover:border-brand/30 transition-all">
+              <input type="radio" name="rep-format" value="pdf" class="accent-brand" />
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center text-red-400">
+                  <i class="fa-solid fa-file-pdf text-lg"></i>
+                </div>
+                <div>
+                  <div class="text-sm font-600 text-white">PDF</div>
+                  <div class="text-[10px] text-slate-500">Formatted Document</div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-8">
+        <button onclick="closeModal()" class="btn btn-secondary flex-1 justify-center">Cancel</button>
+        <button id="gen-report-btn" onclick="generateReport('${type}')" class="btn btn-primary flex-1 justify-center">
+          <i class="fa-solid fa-gears mr-2"></i> Generate & Download
+        </button>
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+async function generateReport(type) {
+  const btn = document.getElementById('gen-report-btn');
+  const orgHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Generating...';
+  btn.disabled = true;
+
+  try {
+    const params = {};
+    const start = document.getElementById('rep-start')?.value;
+    const end = document.getElementById('rep-end')?.value;
+    const prod = document.getElementById('rep-product')?.value;
+    const format = document.querySelector('input[name="rep-format"]:checked')?.value || 'csv';
+
+    if (start) params.startDate = start;
+    if (end) params.endDate = end;
+    if (prod) params.productId = prod;
+
+    const res = await API.getReport(type, params);
+    
+    if (format === 'csv') {
+      downloadCSV(type, res.data, start, end);
+    } else {
+      downloadPDF(type, res.data, res.summary, start, end);
+    }
+    
+    showToast('Report generated successfully', 'success');
+    closeModal();
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    btn.innerHTML = orgHtml;
+    btn.disabled = false;
+  }
+}
+
+function downloadCSV(type, data, start, end) {
+  if (!data || !data.length) {
+    showToast('No data available for the selected period', 'warn');
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  const rows = [
+    headers.join(','),
+    ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+  ].join('\n');
+
+  const blob = new Blob([rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const filename = `${type}_${start || 'all'}_to_${end || 'present'}.csv`;
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function downloadPDF(type, data, summary, start, end) {
+  if (!data || !data.length) {
+    showToast('No data available for the selected period', 'warn');
+    return;
+  }
+
+  const printArea = document.getElementById('print-area');
+  const title = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Report';
+  
+  let html = `
+    <div style="font-family: 'Sora', sans-serif; color: #1e293b; padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
+        <div>
+          <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a;">StockFlow Analytics</h1>
+          <p style="font-size: 14px; color: #64748b; margin: 0;">${title}</p>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-size: 12px; color: #64748b; margin: 0;">Generated: ${new Date().toLocaleString()}</p>
+          <p style="font-size: 12px; color: #64748b; margin: 0;">Period: ${start || 'Start'} to ${end || 'End'}</p>
+        </div>
+      </div>
+
+      ${summary ? `
+      <div style="display: flex; gap: 15px; margin-bottom: 30px;">
+        ${Object.entries(summary).map(([key, val]) => `
+          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 10px;">
+            <p style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin: 0 0 5px 0;">${key.replace(/([A-Z])/g, ' $1')}</p>
+            <p style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0;">${val}</p>
+          </div>
+        `).join('')}
+      </div>` : ''}
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            ${Object.keys(data[0]).map(h => `<th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569;">${h.replace('_', ' ')}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(row => `
+            <tr>
+              ${Object.values(row).map(v => `<td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 11px; color: #334155;">${v || '—'}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      <div style="text-align: center; font-size: 10px; color: #94a3b8; margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+        This is a system generated report from StockFlow Management System.
+      </div>
+    </div>
+  `;
+
+  printArea.innerHTML = html;
+  
+  const opt = {
+    margin: 0,
+    filename: `${type}_${start || 'all'}_to_${end || 'present'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+  };
+
+  html2pdf().set(opt).from(printArea).save().then(() => {
+    printArea.innerHTML = '';
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════════════

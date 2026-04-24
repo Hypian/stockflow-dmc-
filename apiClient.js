@@ -141,5 +141,11 @@ const API = {
   // ── AUDIT LOGS ─────────────────────────────────────────────────
   getAuditLogs: async () => {
     return await API.request('/audit', 'GET');
+  },
+
+  // ── REPORTS ────────────────────────────────────────────────────
+  getReport: async (type, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return await API.request(`/reports/${type}${qs ? '?' + qs : ''}`, 'GET');
   }
 };
