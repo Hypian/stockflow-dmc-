@@ -165,13 +165,13 @@ const getMovementTrends = async (req, res) => {
         }
 
         const sql = `
-            SELECT entry_date as date, 
-                   SUM(received) as stock_in, 
-                   SUM(disbursed) as stock_out
-            FROM entries
+            SELECT e.entry_date as date, 
+                   SUM(e.received) as stock_in, 
+                   SUM(e.disbursed) as stock_out
+            FROM entries e
             WHERE 1=1 ${dateFilter}
-            GROUP BY entry_date
-            ORDER BY entry_date ASC
+            GROUP BY e.entry_date
+            ORDER BY e.entry_date ASC
         `;
         const result = await query(sql, params);
         res.json({ data: result.rows });
