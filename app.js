@@ -1636,65 +1636,137 @@ function exportAuditCSV() {
   showToast('CSV exported successfully', 'success');
 }
 
+function generateAuditReportHTML(rows, title = "AUDIT REPORT") {
+  const totals = {
+    opening: rows.reduce((s, e) => s + Number(e.opening || 0), 0),
+    received: rows.reduce((s, e) => s + Number(e.received || 0), 0),
+    damaged: rows.reduce((s, e) => s + Number(e.damaged || 0), 0),
+    disbursed: rows.reduce((s, e) => s + Number(e.disbursed || 0), 0),
+    closing: rows.reduce((s, e) => s + Number(e.closing || 0), 0),
+    total: rows.reduce((s, e) => s + Number(e.total || 0), 0),
+    variance: rows.reduce((s, e) => s + Number(e.variance || 0), 0)
+  };
+
+  return `
+    <div style="font-family:'Inter', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 0; margin: 0; background: #fff;">
+      <!-- Header -->
+      <div style="background: #0f172a; color: #fff; padding: 30px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em; color: #fff;">StockFlow <span style="color: #38bdf8;">Audit</span></h1>
+          <p style="margin: 5px 0 0; font-size: 12px; color: #94a3b8; font-weight: 500;">Secure Inventory Management System</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #38bdf8; margin-bottom: 4px;">${title}</div>
+          <div style="font-size: 11px; color: #94a3b8;">Generated: ${new Date().toLocaleString()}</div>
+          <div style="font-size: 11px; color: #94a3b8;">Administrator: ${currentUser.name}</div>
+        </div>
+      </div>
+
+      <div style="padding: 30px;">
+        <!-- Summary Dashboard -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Records</div>
+            <div style="font-size: 20px; font-weight: 800; color: #1e293b;">${rows.length}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 15px; border-radius: 8px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Received</div>
+            <div style="font-size: 20px; font-weight: 800; color: #1e293b;">${totals.received}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Damaged</div>
+            <div style="font-size: 20px; font-weight: 800; color: #ef4444;">${totals.damaged}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #6366f1; padding: 15px; border-radius: 8px;">
+            <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Net Variance</div>
+            <div style="font-size: 20px; font-weight: 800; color: ${totals.variance < 0 ? '#ef4444' : '#10b981'};">${totals.variance}</div>
+          </div>
+        </div>
+
+        <!-- Main Data Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px; font-size: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          <thead>
+            <tr style="background: #f1f5f9; color: #475569; text-transform: uppercase; font-weight: 700; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 12px 10px; text-align: left;">Date</th>
+              <th style="padding: 12px 10px; text-align: left;">Shift</th>
+              <th style="padding: 12px 10px; text-align: left;">Staff</th>
+              <th style="padding: 12px 10px; text-align: left;">Product</th>
+              <th style="padding: 12px 10px; text-align: center; background: #eff6ff;">Open</th>
+              <th style="padding: 12px 10px; text-align: center;">In</th>
+              <th style="padding: 12px 10px; text-align: center;">Out</th>
+              <th style="padding: 12px 10px; text-align: center; color: #ef4444;">Dmg</th>
+              <th style="padding: 12px 10px; text-align: center; background: #eff6ff;">Close</th>
+              <th style="padding: 12px 10px; text-align: center; background: #f0f9ff; font-weight: 900;">Rem.</th>
+              <th style="padding: 12px 10px; text-align: center;">Var.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((e, i) => `
+              <tr style="border-bottom: 1px solid #f1f5f9; ${i % 2 === 0 ? 'background: #fff;' : 'background: #fcfcfc;'}">
+                <td style="padding: 10px; font-weight: 600;">${e.date}</td>
+                <td style="padding: 10px; text-transform: capitalize; color: #64748b;">${e.shift}</td>
+                <td style="padding: 10px; color: #1e293b;">${e.userName}</td>
+                <td style="padding: 10px; font-weight: 600; color: #0f172a;">${e.productName}</td>
+                <td style="padding: 10px; text-align: center; background: #f8fafc; font-weight: 500;">${e.opening}</td>
+                <td style="padding: 10px; text-align: center; color: #10b981; font-weight: 500;">${e.received}</td>
+                <td style="padding: 10px; text-align: center; color: #3b82f6; font-weight: 500;">${e.disbursed || 0}</td>
+                <td style="padding: 10px; text-align: center; color: #ef4444; font-weight: 500;">${e.damaged}</td>
+                <td style="padding: 10px; text-align: center; background: #f8fafc; font-weight: 500;">${e.closing}</td>
+                <td style="padding: 10px; text-align: center; background: #f0f9ff; font-weight: 800; color: #0369a1;">${e.total}</td>
+                <td style="padding: 10px; text-align: center; color: ${e.variance < 0 ? '#ef4444' : '#10b981'}; font-weight: 600;">${e.variance}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot style="background: #0f172a; color: #fff; font-weight: 700;">
+            <tr>
+              <td colspan="4" style="padding: 12px; border-right: 1px solid rgba(255,255,255,0.1);">AGGREGATED TOTALS</td>
+              <td style="padding: 12px; text-align: center;">${totals.opening}</td>
+              <td style="padding: 12px; text-align: center; color: #4ade80;">${totals.received}</td>
+              <td style="padding: 12px; text-align: center; color: #60a5fa;">${totals.disbursed}</td>
+              <td style="padding: 12px; text-align: center; color: #f87171;">${totals.damaged}</td>
+              <td style="padding: 12px; text-align: center;">${totals.closing}</td>
+              <td style="padding: 12px; text-align: center; background: #38bdf8; color: #0f172a;">${totals.total}</td>
+              <td style="padding: 12px; text-align: center;">${totals.variance}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- Validation Section -->
+        <div style="margin-top: 50px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; border-top: 2px solid #f1f5f9; padding-top: 25px;">
+          <div>
+            <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Report Certified By</div>
+            <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; font-weight: 700; color: #1e293b;">${currentUser.name}</div>
+            <div style="font-size: 9px; color: #64748b;">System Administrator</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Verified By Supervisor</div>
+            <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; font-weight: 700; color: #1e293b;">Signature Required</div>
+            <div style="font-size: 9px; color: #64748b;">Department Head</div>
+          </div>
+          <div>
+            <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Official Authorization</div>
+            <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px; font-weight: 700; color: #1e293b;">${new Date().toLocaleDateString('en-GB')}</div>
+            <div style="font-size: 9px; color: #64748b;">Audit Date & Stamp</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; padding: 20px 30px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; text-align: center;">
+        This document is an official system-generated audit report. Any unauthorized alterations are strictly prohibited. 
+        &copy; ${new Date().getFullYear()} StockFlow Inventory Suite.
+      </div>
+    </div>
+  `;
+}
+
 function printAuditReport() {
   const rows = getAuditFiltered().sort((a, b) => b.date.localeCompare(a.date));
   if (!rows.length) { showToast('No data to print', 'warn'); return; }
   const area = document.getElementById('print-area');
-  area.innerHTML = `
-    <div style="font-family:Arial,sans-serif;">
-      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px;">
-        <div><h1 style="margin:0;font-size:20pt;font-weight:900;">StockFlow</h1>
-        <p style="margin:0;font-size:9pt;color:#666;">Inventory Management System</p></div>
-        <div style="text-align:right;"><div style="font-size:14pt;font-weight:700;">AUDIT REPORT</div>
-        <div style="font-size:9pt;color:#333;">Generated: ${new Date().toLocaleString()}</div>
-        <div style="font-size:9pt;color:#333;">By: ${currentUser.name}</div></div>
-      </div>
-      <div style="background:#f9f9f9;padding:10px;border-radius:4px;margin-bottom:14px;font-size:9pt;">
-        <strong>Records:</strong> ${rows.length} &nbsp;|&nbsp;
-        <strong>Total Closing Stock:</strong> ${rows.reduce((s, e) => s + Number(e.total || 0), 0)} &nbsp;|&nbsp;
-        <strong>Total Damaged Stock:</strong> ${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)} &nbsp;|&nbsp;
-        <strong>Total Disbursed (Stock Out):</strong> ${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)} &nbsp;|&nbsp;
-        <strong>Total Variance:</strong> ${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:8pt;">
-        <thead><tr style="background:#111;color:#fff;">
-          ${['Date', 'Shift', 'User', 'Product', 'Opening Stock', 'Received Stock', 'Damaged Stock', 'Stock Out', 'Closing Stock', 'Total Stock', 'Variance', 'Time']
-      .map(h => `<th style="padding:6px;text-align:left;border:1px solid #ddd;">${h}</th>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${rows.map((e, i) => `<tr style="${i % 2 ? 'background:#f9f9f9' : ''}">
-            <td style="padding:5px;border:1px solid #ddd;">${e.date}</td>
-            <td style="padding:5px;border:1px solid #ddd;">${e.shift}</td>
-            <td style="padding:5px;border:1px solid #ddd;">${e.userName}</td>
-            <td style="padding:5px;border:1px solid #ddd;">${e.productName}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.opening}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.received}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.damaged}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.disbursed || 0}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.closing}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;font-weight:700;">${e.total}</td>
-            <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.variance}</td>
-            <td style="padding:5px;border:1px solid #ddd;">${e.time}</td>
-          </tr>`).join('')}
-        </tbody>
-        <tfoot><tr style="background:#eee;font-weight:700;font-size:9pt;">
-          <td colspan="4" style="padding:6px;border:1px solid #ddd;">TOTALS</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
-          <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
-          <td style="border:1px solid #ddd;"></td>
-        </tr></tfoot>
-      </table>
-      <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;padding-top:12px;border-top:1px solid #ccc;">
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Staff Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${currentUser.name}</div></div>
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Supervisor Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">___________________</div></div>
-        <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Date & Stamp</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${new Date().toLocaleDateString('en-GB')}</div></div>
-      </div>
-    </div>`;
+  area.innerHTML = generateAuditReportHTML(rows, "OFFICIAL AUDIT REPORT");
   window.print();
 }
 
@@ -1703,66 +1775,11 @@ function downloadAuditPDF() {
   if (!rows.length) { showToast('No data to download', 'warn'); return; }
 
   // Show loading toast
-  showToast('Generating PDF…', 'info', 5000);
+  showToast('Generating Premium PDF…', 'info', 5000);
 
-  const content = document.createElement('div');
-  content.style.fontFamily = 'Arial, sans-serif';
-  content.style.padding = '20px';
-  content.style.color = '#000';
-  content.style.background = '#fff';
-  content.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px;">
-      <div><h1 style="margin:0;font-size:20pt;font-weight:900;">StockFlow</h1>
-      <p style="margin:0;font-size:9pt;color:#666;">Inventory Management System</p></div>
-      <div style="text-align:right;"><div style="font-size:14pt;font-weight:700;">AUDIT REPORT</div>
-      <div style="font-size:9pt;color:#333;">Generated: ${new Date().toLocaleString()}</div>
-      <div style="font-size:9pt;color:#333;">By: ${currentUser.name}</div></div>
-    </div>
-    <div style="background:#f9f9f9;padding:10px;border-radius:4px;margin-bottom:14px;font-size:9pt;">
-      <strong>Records:</strong> ${rows.length} &nbsp;|&nbsp;
-      <strong>Total Closing Stock:</strong> ${rows.reduce((s, e) => s + Number(e.total || 0), 0)} &nbsp;|&nbsp;
-      <strong>Total Damaged Stock:</strong> ${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)} &nbsp;|&nbsp;
-      <strong>Total Disbursed:</strong> ${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)} &nbsp;|&nbsp;
-      <strong>Total Variance:</strong> ${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:8pt;">
-      <thead><tr style="background:#111;color:#fff;">
-        ${['Date', 'Shift', 'User', 'Product', 'Opening', 'Received', 'Damaged', 'Stock Out', 'Closing', 'Remaining', 'Variance', 'Time']
-          .map(h => `<th style="padding:6px;text-align:left;border:1px solid #ddd;">${h}</th>`).join('')}
-      </tr></thead>
-      <tbody>
-        ${rows.map((e, i) => `<tr style="${i % 2 ? 'background:#f9f9f9' : ''}">
-          <td style="padding:5px;border:1px solid #ddd;">${e.date}</td>
-          <td style="padding:5px;border:1px solid #ddd;">${e.shift || '—'}</td>
-          <td style="padding:5px;border:1px solid #ddd;">${e.userName}</td>
-          <td style="padding:5px;border:1px solid #ddd;">${e.productName}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.opening}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.received}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.damaged}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.disbursed || 0}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.closing}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;font-weight:700;">${e.total}</td>
-          <td style="padding:5px;border:1px solid #ddd;text-align:center;">${e.variance}</td>
-          <td style="padding:5px;border:1px solid #ddd;">${e.time}</td>
-        </tr>`).join('')}
-      </tbody>
-      <tfoot><tr style="background:#eee;font-weight:700;font-size:9pt;">
-        <td colspan="4" style="padding:6px;border:1px solid #ddd;">TOTALS</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.opening || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.closing || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.total || 0), 0)}</td>
-        <td style="padding:6px;border:1px solid #ddd;text-align:center;">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
-        <td style="border:1px solid #ddd;"></td>
-      </tr></tfoot>
-    </table>
-    <div style="margin-top:32px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;padding-top:12px;border-top:1px solid #ccc;">
-      <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Staff Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${currentUser.name}</div></div>
-      <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Supervisor Signature</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">___________________</div></div>
-      <div><div style="font-size:8pt;color:#666;margin-bottom:30px;">Date & Stamp</div><div style="border-top:1px solid #000;padding-top:4px;font-size:8pt;">${new Date().toLocaleDateString('en-GB')}</div></div>
-    </div>`;
+  const container = document.createElement('div');
+  container.innerHTML = generateAuditReportHTML(rows, "SECURE AUDIT DOCUMENT");
+  const content = container.firstElementChild;
 
   const opt = {
     margin: [10, 10, 10, 10],

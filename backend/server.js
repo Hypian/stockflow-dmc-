@@ -19,6 +19,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'success', message: 'Server is up and running' });
 });
 
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ error: `Route ${req.originalUrl} not found` });
+});
+
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack);

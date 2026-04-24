@@ -45,7 +45,18 @@ const API = {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
       const text = await response.text();
-      const data = text ? JSON.parse(text) : {};
+      
+      let data = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('JSON Parse Error. Raw response:', text);
+        // If it looks like HTML, give a better error
+        if (text.trim().startsWith('<')) {
+          throw new Error(`Backend Error: Server returned an HTML page instead of data. Check server logs.`);
+        }
+        throw new Error(`Invalid response from server: ${text.substring(0, 50)}...`);
+      }
       
       if (response.status === 401) {
         // Token expired or invalid - clear session and reload
