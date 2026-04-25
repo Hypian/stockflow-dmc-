@@ -2217,7 +2217,6 @@ function downloadPDF(type, data, summary, start, end) {
     return;
   }
 
-  const printArea = document.getElementById('print-area');
   const reportDefs = getAnalyticsReportDefinitions();
   const def = reportDefs[type] || reportDefs._default;
   const title = def.title || (type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Report');
@@ -2289,7 +2288,17 @@ function downloadPDF(type, data, summary, start, end) {
     </div>
   `;
 
-  printArea.innerHTML = html;
+  // NOTE: #print-area is hidden by default (print-only). html2pdf/html2canvas will render blanks
+  // if the source element is display:none. So we render into a temporary offscreen container.
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.width = orientation === 'portrait' ? '794px' : '1123px'; // approx A4 px at 96dpi
+  container.style.background = '#ffffff';
+  container.style.zIndex = '-1';
+  container.innerHTML = html;
+  document.body.appendChild(container);
   
   const opt = {
     margin: 0,
@@ -2301,8 +2310,12 @@ function downloadPDF(type, data, summary, start, end) {
     jsPDF: { unit: 'mm', format: 'a4', orientation }
   };
 
-  html2pdf().set(opt).from(printArea).save().then(() => {
-    printArea.innerHTML = '';
+  html2pdf().set(opt).from(container).save().then(() => {
+    container.remove();
+  }).catch(err => {
+    container.remove();
+    console.error('PDF generation failed:', err);
+    showToast('PDF generation failed. Try again or use CSV.', 'error');
   });
 }
 
