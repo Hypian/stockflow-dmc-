@@ -2671,9 +2671,12 @@ async function updateUnit() {
     if (openingStock !== null && openingStock !== undefined) {
       openingInput.value = openingStock;
       
-      const latestEntry = getLatestEntryForProduct(productId);
-      if (latestEntry?.userName && latestEntry.userName !== currentUser?.name) {
-        showToast(`Auto-filled: Opening matches ${latestEntry.userName}'s closing.`, 'success');
+      const sourceEntry = (currentUser?.username || '').toLowerCase() === 'john'
+        ? getLatestEntryForProductByUserName(productId, 'Binama David')
+        : getLatestEntryForProduct(productId);
+
+      if (sourceEntry?.userName && sourceEntry.userName !== currentUser?.name) {
+        showToast(`Auto-filled: Opening matches ${sourceEntry.userName}'s closing.`, 'success');
       }
     } else {
       openingInput.value = '';
@@ -2689,6 +2692,16 @@ async function updateUnit() {
 function getUnifiedOpeningStock(productId) {
   const entries = db_entries.filter(e => String(e.productId) === String(productId));
   if (!entries.length) return null;
+
+  // John-specific rule:
+  // On John's account, opening should be pulled from David's latest closing
+  // (for the same product, based on latest date/time available).
+  if ((currentUser?.username || '').toLowerCase() === 'john') {
+    const davidLatest = getLatestEntryForProductByUserName(productId, 'Binama David');
+    if (davidLatest && davidLatest.closing !== null && davidLatest.closing !== undefined) {
+      return Number(davidLatest.closing);
+    }
+  }
 
   const now = new Date();
   const shift = getCurrentShift(now);
@@ -2718,6 +2731,19 @@ function getUnifiedOpeningStock(productId) {
     return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
   })[0];
   return latestEntry ? (Number(latestEntry.opening || 0) + Number(latestEntry.received || 0) - Number(latestEntry.damaged || 0) - Number(latestEntry.disbursed || 0)) : null;
+}
+
+function getLatestEntryForProductByUserName(productId, userName) {
+  const entries = db_entries.filter(e =>
+    String(e.productId) === String(productId) &&
+    String((e.userName || '')).trim().toLowerCase() === String(userName || '').trim().toLowerCase()
+  );
+  if (!entries.length) return null;
+
+  return entries.sort((a, b) => {
+    const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
+    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+  })[0] || null;
 }
 
 function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {

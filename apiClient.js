@@ -53,9 +53,9 @@ const API = {
         console.error('JSON Parse Error. Raw response:', text);
         // If it looks like HTML, give a better error
         if (text.trim().startsWith('<')) {
-          throw new Error(`Backend Error: Server returned an HTML page instead of data. Check server logs.`);
+          throw new Error(`Backend Error (${response.status}): Server returned an HTML page instead of data. Check server logs.`);
         }
-        throw new Error(`Invalid response from server: ${text.substring(0, 50)}...`);
+        throw new Error(`Invalid response from server (${response.status}): ${text.substring(0, 50)}...`);
       }
       
       if (response.status === 401) {

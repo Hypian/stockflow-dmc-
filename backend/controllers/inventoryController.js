@@ -56,6 +56,31 @@ const createEntry = async (req, res) => {
     let finalOpening = opening;
     let finalVariance = variance;
 
+    // ── USER-SPECIFIC HANDOVER (John ← David) ──
+    // Rule: On John's account, opening should auto-follow David's last recorded closing
+    // for the same product and working date (if available).
+    if ((req.user?.username || '').toLowerCase() === 'john') {
+      const davidRef = await query(
+        `
+          SELECT e.closing
+          FROM entries e
+          JOIN users u ON e.user_id = u.id
+          WHERE u.username = $1
+            AND e.product_id = $2
+            AND e.entry_date = $3
+          ORDER BY e.entry_time DESC NULLS LAST, e.created_at DESC
+          LIMIT 1
+        `,
+        ['binama', product_id, entry_date]
+      );
+
+      if (davidRef.rows.length > 0 && davidRef.rows[0].closing !== null && davidRef.rows[0].closing !== undefined) {
+        finalOpening = Number(davidRef.rows[0].closing);
+        const expected = finalOpening + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
+        finalVariance = Number(closing || 0) - expected;
+      }
+    }
+
     if (shift === 'night') {
       const morningRef = await query(
         'SELECT opening, received, damaged, disbursed, closing FROM entries WHERE product_id = $1 AND entry_date = $2 AND shift = $3 LIMIT 1',
