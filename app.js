@@ -2186,16 +2186,22 @@ function downloadCSV(type, data, start, end) {
     return;
   }
 
-  const headers = Object.keys(data[0]);
-  const rows = [
-    headers.join(','),
-    ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
-  ].join('\n');
+  const reportDefs = getAnalyticsReportDefinitions();
+  const def = reportDefs[type] || reportDefs._default;
 
-  const blob = new Blob([rows], { type: 'text/csv;charset=utf-8;' });
+  const columns = (def?.columns || Object.keys(data[0]).map(k => ({ key: k, label: k })))
+    .filter(Boolean);
+
+  const headers = columns.map(c => csvEscape(c.label));
+  const rows = data.map(row => columns.map(c => csvEscape(def.value(row, c.key))).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  const filename = `${type}_${start || 'all'}_to_${end || 'present'}.csv`;
+  const filename = `${def.filenamePrefix || 'StockFlow_Analytics'}_${(def.title || type)}_${start || 'all'}_to_${end || 'present'}.csv`
+    .replace(/\s+/g, '_')
+    .replace(/[^\w\-\.]/g, '');
   
   link.setAttribute('href', url);
   link.setAttribute('download', filename);
@@ -2212,48 +2218,73 @@ function downloadPDF(type, data, summary, start, end) {
   }
 
   const printArea = document.getElementById('print-area');
-  const title = type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Report';
+  const reportDefs = getAnalyticsReportDefinitions();
+  const def = reportDefs[type] || reportDefs._default;
+  const title = def.title || (type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Report');
+  const periodText = def.hasDateRange ? `${start || 'All time'} to ${end || 'Present'}` : 'All time';
+  const generatedAt = new Date().toLocaleString();
+
+  const computed = def.computeSummary(data, summary);
+  const columns = def.columns && def.columns.length
+    ? def.columns
+    : Object.keys(data[0]).map(k => ({ key: k, label: k }));
+
+  const orientation = def.orientation || 'landscape';
   
   let html = `
-    <div style="font-family: 'Sora', sans-serif; color: #1e293b; padding: 20px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f59e0b; padding-bottom: 15px; margin-bottom: 20px;">
+    <div style="font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #0f172a; padding: 22px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom: 3px solid #f59e0b;padding-bottom:14px;margin-bottom:16px;">
         <div>
-          <h1 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a;">StockFlow Analytics</h1>
-          <p style="font-size: 14px; color: #64748b; margin: 0;">${title}</p>
+          <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#64748b;font-weight:800;">StockFlow Analytics Report</div>
+          <h1 style="font-size:22px;font-weight:900;margin:6px 0 0 0;color:#0f172a;line-height:1.1;">${title}</h1>
+          <div style="font-size:12px;color:#475569;margin-top:6px;">
+            <span style="font-weight:800;color:#0f172a;">Period:</span> ${periodText}
+            ${def.metaLine ? ` • <span style="font-weight:800;color:#0f172a;">${def.metaLine.label}:</span> ${def.metaLine.value()}` : ''}
+          </div>
         </div>
         <div style="text-align: right;">
-          <p style="font-size: 12px; color: #64748b; margin: 0;">Generated: ${new Date().toLocaleString()}</p>
-          <p style="font-size: 12px; color: #64748b; margin: 0;">Period: ${start || 'Start'} to ${end || 'End'}</p>
+          <div style="font-size:11px;color:#64748b;margin:0;"><span style="font-weight:800;color:#0f172a;">Generated:</span> ${generatedAt}</div>
+          <div style="font-size:11px;color:#64748b;margin:3px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Prepared by:</span> ${currentUser?.name || 'Admin'}</div>
+          <div style="font-size:11px;color:#64748b;margin:3px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Document ID:</span> SF-${Date.now().toString().slice(-8)}</div>
         </div>
       </div>
 
-      ${summary ? `
-      <div style="display: flex; gap: 15px; margin-bottom: 30px;">
-        ${Object.entries(summary).map(([key, val]) => `
-          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 10px;">
-            <p style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin: 0 0 5px 0;">${key.replace(/([A-Z])/g, ' $1')}</p>
-            <p style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0;">${val}</p>
-          </div>
-        `).join('')}
-      </div>` : ''}
+      ${computed.cards?.length ? `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin: 10px 0 16px 0;">
+          ${computed.cards.map(c => `
+            <div style="flex:1;min-width:170px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:#64748b;font-weight:900;margin:0 0 6px 0;">${c.label}</div>
+              <div style="font-size:18px;font-weight:900;color:#0f172a;margin:0;line-height:1.1;">${c.value}</div>
+              ${c.sub ? `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${c.sub}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
 
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
         <thead>
-          <tr style="background: #f1f5f9;">
-            ${Object.keys(data[0]).map(h => `<th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; color: #475569;">${h.replace('_', ' ')}</th>`).join('')}
+          <tr style="background:#0f172a;">
+            ${columns.map(c => `<th style="padding:9px 10px;text-align:left;border:1px solid #0b1220;font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:#e2e8f0;">${c.label}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
-          ${data.map(row => `
-            <tr>
-              ${Object.values(row).map(v => `<td style="padding: 10px; border: 1px solid #e2e8f0; font-size: 11px; color: #334155;">${v || '—'}</td>`).join('')}
+          ${data.map((row, idx) => `
+            <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+              ${columns.map(c => {
+                const v = def.value(row, c.key);
+                const align = c.align || (typeof v === 'number' ? 'right' : 'left');
+                const display = def.formatValue(v, c.key);
+                const extraStyle = def.cellStyle ? def.cellStyle(row, c.key, v) : '';
+                return `<td style="padding:8px 10px;border:1px solid #e2e8f0;font-size:10.5px;color:#0f172a;text-align:${align};vertical-align:top;${extraStyle}">${display}</td>`;
+              }).join('')}
             </tr>
           `).join('')}
         </tbody>
       </table>
       
-      <div style="text-align: center; font-size: 10px; color: #94a3b8; margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 10px;">
-        This is a system generated report from StockFlow Management System.
+      <div style="display:flex;justify-content:space-between;gap:12px;font-size:9.5px;color:#64748b;margin-top:18px;border-top:1px solid #e2e8f0;padding-top:8px;">
+        <div>This document is system-generated by StockFlow. Unauthorized alteration is prohibited.</div>
+        <div style="text-align:right;">© ${new Date().getFullYear()} StockFlow</div>
       </div>
     </div>
   `;
@@ -2262,15 +2293,184 @@ function downloadPDF(type, data, summary, start, end) {
   
   const opt = {
     margin: 0,
-    filename: `${type}_${start || 'all'}_to_${end || 'present'}.pdf`,
+    filename: `${(def.filenamePrefix || 'StockFlow_Analytics')}_${title}_${start || 'all'}_to_${end || 'present'}.pdf`
+      .replace(/\s+/g, '_')
+      .replace(/[^\w\-\.]/g, ''),
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation }
   };
 
   html2pdf().set(opt).from(printArea).save().then(() => {
     printArea.innerHTML = '';
   });
+}
+
+function csvEscape(v) {
+  const s = (v === null || v === undefined) ? '' : String(v);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function getAnalyticsReportDefinitions() {
+  const titleize = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+  const num = (x) => Number(x || 0);
+
+  const base = {
+    filenamePrefix: 'StockFlow_Analytics',
+    hasDateRange: true,
+    orientation: 'landscape',
+    value: (row, key) => row?.[key],
+    formatValue: (v) => (v === null || v === undefined || v === '' ? '—' : String(v)),
+    computeSummary: (data, summary) => ({ cards: summary ? Object.entries(summary).map(([k, v]) => ({ label: titleize(k), value: v })) : [] })
+  };
+
+  return {
+    damages: {
+      ...base,
+      title: 'Damage Report',
+      columns: [
+        { key: 'date', label: 'Date' },
+        { key: 'product_name', label: 'Product' },
+        { key: 'quantity', label: 'Damaged Qty', align: 'right' },
+        { key: 'shift', label: 'Shift' },
+        { key: 'user_name', label: 'Recorded By' }
+      ],
+      value: (row, key) => (key === 'quantity' ? num(row.quantity) : row?.[key]),
+      computeSummary: (data, summary) => {
+        const total = data.reduce((s, r) => s + num(r.quantity), 0);
+        const uniqProducts = new Set(data.map(r => r.product_name)).size;
+        const uniqUsers = new Set(data.map(r => r.user_name)).size;
+        return {
+          cards: [
+            { label: 'Total Damaged', value: total },
+            { label: 'Products Affected', value: uniqProducts },
+            { label: 'Users Involved', value: uniqUsers },
+            ...(summary?.period ? [{ label: 'Period', value: summary.period }] : [])
+          ]
+        };
+      }
+    },
+    comparison: {
+      ...base,
+      title: 'Stock In vs Stock Out',
+      columns: [
+        { key: 'product_name', label: 'Product' },
+        { key: 'total_in', label: 'Total In', align: 'right' },
+        { key: 'total_out', label: 'Total Out', align: 'right' },
+        { key: 'net_movement', label: 'Net Movement', align: 'right' }
+      ],
+      value: (row, key) => ['total_in', 'total_out', 'net_movement'].includes(key) ? num(row[key]) : row?.[key],
+      computeSummary: (data, summary) => ({
+        cards: [
+          { label: 'Total In', value: summary?.totalIn ?? data.reduce((s, r) => s + num(r.total_in), 0) },
+          { label: 'Total Out', value: summary?.totalOut ?? data.reduce((s, r) => s + num(r.total_out), 0) },
+          { label: 'Net Movement', value: summary?.netMovement ?? data.reduce((s, r) => s + num(r.net_movement), 0) },
+          { label: 'Products', value: data.length }
+        ]
+      })
+    },
+    summary: {
+      ...base,
+      title: 'Inventory Summary (Current Levels)',
+      hasDateRange: false,
+      orientation: 'portrait',
+      columns: [
+        { key: 'name', label: 'Product' },
+        { key: 'unit', label: 'Unit' },
+        { key: 'current_stock', label: 'Current', align: 'right' },
+        { key: 'max_stock', label: 'Historical Max', align: 'right' },
+        { key: 'status', label: 'Status' }
+      ],
+      value: (row, key) => {
+        if (key === 'status') {
+          if (row?.isLow) return 'LOW';
+          if (row?.isOverstock) return 'HIGH';
+          return 'OK';
+        }
+        if (key === 'current_stock' || key === 'max_stock') return num(row[key]);
+        return row?.[key];
+      },
+      cellStyle: (row, key, v) => {
+        if (key !== 'status') return '';
+        if (String(v) === 'LOW') return 'font-weight:900;color:#b91c1c;background:#fee2e2;';
+        if (String(v) === 'HIGH') return 'font-weight:900;color:#92400e;background:#ffedd5;';
+        return 'font-weight:900;color:#065f46;background:#dcfce7;';
+      },
+      computeSummary: (data) => {
+        const low = data.filter(r => r.isLow).length;
+        const high = data.filter(r => r.isOverstock).length;
+        const ok = data.length - low - high;
+        return { cards: [
+          { label: 'Active Products', value: data.length },
+          { label: 'Low Stock', value: low },
+          { label: 'Overstock', value: high },
+          { label: 'Normal', value: ok }
+        ]};
+      }
+    },
+    trends: {
+      ...base,
+      title: 'Movement Trends (By Day)',
+      columns: [
+        { key: 'date', label: 'Date' },
+        { key: 'stock_in', label: 'Stock In', align: 'right' },
+        { key: 'stock_out', label: 'Stock Out', align: 'right' },
+        { key: 'net', label: 'Net', align: 'right' }
+      ],
+      value: (row, key) => {
+        const si = num(row.stock_in);
+        const so = num(row.stock_out);
+        if (key === 'stock_in') return si;
+        if (key === 'stock_out') return so;
+        if (key === 'net') return si - so;
+        return row?.[key];
+      },
+      computeSummary: (data) => {
+        const totalIn = data.reduce((s, r) => s + num(r.stock_in), 0);
+        const totalOut = data.reduce((s, r) => s + num(r.stock_out), 0);
+        return { cards: [
+          { label: 'Total Stock In', value: totalIn },
+          { label: 'Total Stock Out', value: totalOut },
+          { label: 'Net Movement', value: totalIn - totalOut },
+          { label: 'Days Covered', value: data.length }
+        ]};
+      }
+    },
+    loss: {
+      ...base,
+      title: 'Loss & Adjustment',
+      columns: [
+        { key: 'product_name', label: 'Product' },
+        { key: 'damages', label: 'Damages', align: 'right' },
+        { key: 'shrinkage', label: 'Shrinkage', align: 'right' },
+        { key: 'total_loss', label: 'Total Loss', align: 'right' }
+      ],
+      value: (row, key) => {
+        const d = num(row.damages);
+        const s = num(row.shrinkage);
+        if (key === 'damages') return d;
+        if (key === 'shrinkage') return s;
+        if (key === 'total_loss') return d + s;
+        return row?.[key];
+      },
+      computeSummary: (data) => {
+        const damages = data.reduce((s, r) => s + num(r.damages), 0);
+        const shrink = data.reduce((s, r) => s + num(r.shrinkage), 0);
+        return { cards: [
+          { label: 'Total Damages', value: damages },
+          { label: 'Total Shrinkage', value: shrink },
+          { label: 'Combined Loss', value: damages + shrink },
+          { label: 'Products Affected', value: data.length }
+        ]};
+      }
+    },
+    _default: {
+      ...base,
+      title: 'Analytics Report',
+      columns: [],
+      hasDateRange: true
+    }
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
