@@ -1543,7 +1543,7 @@ function renderAuditTable() {
         <td class="mono text-xs font-600">${e.date}</td>
         <td>${getShiftBadgeHTML(e.shift)}</td>
         <td>${e.userName}</td>
-        <td class="font-500 text-white">${e.productName}</td>
+        <td class="font-500 text-slate-900">${e.productName}</td>
         <td class="mono">${e.opening}</td>
         <td class="mono">${e.received}</td>
         <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
@@ -3217,13 +3217,13 @@ function renderUserEntriesTable() {
   if (tbody) tbody.innerHTML = paged.map(e => `
     <tr>
       <td class="mono text-xs font-600">${e.date}</td>
-      <td class="font-500 text-white">${e.productName}</td>
+      <td class="font-500 text-slate-900">${e.productName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
       <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
       <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
       <td class="mono">${e.closing}</td>
-      <td class="mono font-600 text-white">${e.total}</td>
+      <td class="mono font-600 text-slate-900">${e.total}</td>
       <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400 font-600' : ''}">${e.variance}</td>
       <td>${getShiftBadgeHTML(e.shift)}</td>
       <td class="mono text-xs text-slate-500">${e.time}</td>

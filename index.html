@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,8 +17,8 @@
       extend: {
         fontFamily: { sora: ['Sora','sans-serif'], mono: ['DM Mono','monospace'] },
         colors: {
-          brand: { DEFAULT:'#f59e0b', 50:'#fffbeb', 100:'#fef3c7', 500:'#f59e0b', 600:'#d97706', 700:'#b45309' },
-          surface: { 900:'#0c0f14', 800:'#111621', 700:'#161d2d', 600:'#1e2940', 500:'#263347', 400:'#2e3f58' },
+          brand: { DEFAULT:'#0ea5e9', 50:'#f0f9ff', 100:'#e0f2fe', 500:'#0ea5e9', 600:'#0284c7', 700:'#0369a1' },
+          surface: { 900:'#f8fafc', 800:'#f1f5f9', 700:'#e2e8f0', 600:'#cbd5e1', 500:'#94a3b8', 400:'#64748b' },
         }
       }
     }
@@ -36,12 +36,12 @@
 <div id="print-area" class="print-only" style="padding:20px;"></div>
 
 <!-- ══════════════════════════════════════ LOADING SPINNER ══════════════════════════════════════ -->
-<div id="loading-splash" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+<div id="loading-splash" class="min-h-screen flex items-center justify-center bg-slate-50">
   <div class="text-center">
     <div class="flex items-center justify-center w-20 h-20 rounded-2xl bg-brand mb-6 mx-auto animate-pulse">
       <i class="fa-solid fa-boxes-stacked text-4xl text-gray-900"></i>
     </div>
-    <div class="text-xl font-bold text-white mb-2">StockFlow</div>
+    <div class="text-xl font-bold text-slate-900 mb-2">StockFlow</div>
     <div class="text-sm text-slate-400 mb-6">Loading your inventory system...</div>
     <div class="flex gap-2 justify-center">
       <div class="w-2 h-2 bg-brand rounded-full animate-bounce" style="animation-delay: 0s;"></div>
@@ -59,13 +59,13 @@
       <div class="flex items-center justify-center w-14 h-14 rounded-2xl bg-brand mb-4 glow-amber mx-auto">
         <i class="fa-solid fa-boxes-stacked text-2xl text-gray-900"></i>
       </div>
-      <h1 class="text-3xl font-bold text-white" style="letter-spacing:-.03em;">StockFlow</h1>
+      <h1 class="text-3xl font-bold text-slate-900" style="letter-spacing:-.03em;">StockFlow</h1>
       <p class="text-slate-500 text-sm mt-1">Inventory Management System</p>
     </div>
 
     <!-- Login Card -->
 	    <div class="glass rounded-2xl p-8">
-	      <h2 class="text-lg font-700 text-white mb-6">Sign in to your account</h2>
+	      <h2 class="text-lg font-700 text-slate-800 mb-6">Sign in to your account</h2>
 	      <div id="connection-status" class="mb-4 text-xs rounded-lg border px-3 py-2 bg-slate-800/40 border-slate-700 text-slate-300">
 	        <i class="fa-solid fa-plug-circle-check mr-1"></i> Checking backend connection…
 	      </div>
@@ -110,12 +110,12 @@
   <!-- ──── SIDEBAR ──── -->
   <aside id="sidebar" class="sidebar glass flex flex-col fixed top-0 left-0 bottom-0 z-40 overflow-hidden">
     <!-- Logo -->
-    <div class="sidebar-header flex items-center gap-3 p-4 border-b border-white/5">
-      <div class="sidebar-logo-icon flex-shrink-0 w-9 h-9 rounded-xl bg-brand flex items-center justify-center glow-amber-sm">
-        <i class="fa-solid fa-boxes-stacked text-gray-900 text-sm"></i>
+    <div class="sidebar-header flex items-center gap-3 p-4 border-b border-slate-200">
+      <div class="sidebar-logo-icon flex-shrink-0 w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
+        <i class="fa-solid fa-boxes-stacked text-white text-sm"></i>
       </div>
       <div class="sidebar-logo-text">
-        <div class="font-800 text-white text-sm" style="letter-spacing:-.02em;">StockFlow</div>
+        <div class="font-800 text-slate-900 text-sm" style="letter-spacing:-.02em;">StockFlow</div>
         <div class="text-xs text-slate-500">Inventory System</div>
       </div>
       <button onclick="toggleSidebar()" class="sidebar-toggle-btn ml-auto btn btn-ghost btn-sm p-1.5 rounded-lg">
@@ -124,7 +124,7 @@
     </div>
 
     <!-- User Info -->
-    <div id="sidebar-user" class="flex items-center gap-3 p-4 mx-2 mt-2 rounded-xl bg-white/[.03] border border-white/5"></div>
+    <div id="sidebar-user" class="flex items-center gap-3 p-4 mx-2 mt-2 rounded-xl bg-slate-50 border border-slate-100"></div>
 
     <!-- Shift Badge -->
     <div id="sidebar-shift" class="mx-2 mt-2 px-3 py-2 rounded-xl glass"></div>
@@ -145,12 +145,12 @@
   <!-- ──── MAIN CONTENT ──── -->
   <main id="main-content" class="flex-1 min-h-screen overflow-x-hidden" style="margin-left:260px; transition:margin-left .3s;">
     <!-- Top Bar -->
-    <header class="sticky top-0 z-20 glass border-b border-white/5 px-6 py-3 flex items-center gap-4">
+    <header class="sticky top-0 z-20 glass border-b border-slate-100 px-6 py-3 flex items-center gap-4">
       <button class="md:hidden btn btn-ghost btn-sm" onclick="openSidebar()">
         <i class="fa-solid fa-bars"></i>
       </button>
       <div>
-        <h1 id="page-title" class="text-base font-700 text-white" style="letter-spacing:-.02em;">Dashboard</h1>
+        <h1 id="page-title" class="text-base font-700 text-slate-900" style="letter-spacing:-.02em;">Dashboard</h1>
         <p id="page-sub" class="text-xs text-slate-500"></p>
       </div>
       <div class="ml-auto flex items-center gap-3">
@@ -178,7 +178,7 @@
       <div id="confirm-icon" class="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
         <i class="fa-solid fa-triangle-exclamation text-red-400 text-2xl"></i>
       </div>
-      <h3 id="confirm-title" class="text-lg font-700 text-white mb-2">Are you sure?</h3>
+      <h3 id="confirm-title" class="text-lg font-700 text-slate-900 mb-2">Are you sure?</h3>
       <p id="confirm-msg" class="text-sm text-slate-400 mb-6">This action cannot be undone.</p>
       <div class="flex gap-3 justify-center">
         <button onclick="closeConfirm()" class="btn btn-secondary">Cancel</button>
