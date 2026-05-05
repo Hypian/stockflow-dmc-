@@ -148,7 +148,7 @@ function updateSidebarShift(shift, el) {
   const time = shift === 'morning' ? '10:00 – 19:00' : '19:00 – 10:00';
   el.innerHTML = `<div class="flex items-center gap-2">
     <span class="shift-dot ${dotCls}"></span>
-    <div class="sidebar-logo-text"><div class="text-xs font-600 text-white">${label}</div>
+    <div class="sidebar-logo-text"><div class="text-xs font-600 text-slate-900">${label}</div>
     <div class="text-xs text-slate-500">${time}</div></div></div>`;
 }
 
@@ -306,10 +306,10 @@ function showReportOptions(context = 'normal') {
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
       <div class="flex items-center justify-between mb-2">
-        <h3 class="text-xl font-800 text-white">${title}</h3>
+        <h3 class="text-xl font-800 text-slate-900">${title}</h3>
         <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <p class="text-sm text-slate-400 mb-6">${sub}</p>
+      <p class="text-sm text-slate-600 mb-6">${sub}</p>
       
       <div class="grid grid-cols-1 gap-3">
         ${context === 'logout' ? `
@@ -599,7 +599,7 @@ function buildSidebar() {
   // User info
   document.getElementById('sidebar-user').innerHTML = `
     <div class="sidebar-logo-text min-w-0">
-      <div class="text-sm font-600 text-white truncate">${currentUser.name}</div>
+      <div class="text-sm font-600 text-slate-900 truncate">${currentUser.name}</div>
       <div class="text-xs text-slate-500 capitalize">${currentUser.role}</div>
     </div>`;
 
@@ -780,7 +780,7 @@ function getLowStockHTML() {
       <div class="flex flex-wrap gap-2 relative z-10">
         ${lowStock.map(p => `
           <span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
-            ${p.name}: <strong class="text-white ml-1">${p.stock}</strong> 
+            ${p.name}: <strong class="text-slate-900 ml-1">${p.stock}</strong> 
             <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded-md bg-red-500/20 font-700">${p.pct}%</span>
           </span>`).join('')}
       </div>
@@ -830,7 +830,7 @@ function renderAdminHome() {
             <tbody>
               ${entries.slice(-8).reverse().map(e => `
               <tr>
-                <td class="font-500 text-white">${e.productName}</td>
+                <td class="font-500 text-slate-900">${e.productName}</td>
                 <td>${e.userName}</td>
                 <td class="mono">${e.total}</td>
                 <td><span class="${Number(e.damaged) > 0 ? 'text-red-400' : 'text-slate-500'}">${e.damaged}</span></td>
@@ -856,7 +856,7 @@ function renderAdminHome() {
                   <i class="fa-solid fa-user"></i>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-600 text-white truncate">${u.name}</div>
+                  <div class="text-sm font-600 text-slate-900 truncate">${u.name}</div>
                   <div class="text-xs text-slate-500">${userToday.length} entries today</div>
                 </div>
                 <span class="${userToday.length > 0 ? 'badge-green' : 'badge badge-red'} badge">${userToday.length > 0 ? 'Active' : 'Idle'}</span>
@@ -897,7 +897,7 @@ function renderAdminHome() {
               <i class="fa-solid ${icon} ${shift === 'morning' ? 'text-amber-400' : 'text-purple-400'}"></i>
             </div>
             <div>
-              <div class="font-600 text-white capitalize">${shift} Shift</div>
+              <div class="font-600 text-slate-900 capitalize">${shift} Shift</div>
               <div class="text-xs text-slate-500">${shift === 'morning' ? '10:00–19:00' : '19:00–10:00'}</div>
             </div>
             <span class="badge ${cls} ml-auto">${se.length} entries</span>
@@ -905,7 +905,7 @@ function renderAdminHome() {
           <div class="grid grid-cols-2 gap-3">
             <div class="glass rounded-lg p-3">
               <div class="text-xs text-slate-500">Total Recorded</div>
-              <div class="mono text-xl font-700 text-white">${se.reduce((s, e) => s + Number(e.total || 0), 0)}</div>
+              <div class="mono text-xl font-700 text-slate-900">${se.reduce((s, e) => s + Number(e.total || 0), 0)}</div>
             </div>
             <div class="glass rounded-lg p-3">
               <div class="text-xs text-slate-500">Damaged</div>
@@ -924,12 +924,12 @@ function statCard(icon, label, value, badgeCls, sub, onclick = '') {
   return `
   <div class="glass rounded-xl p-5 glass-hover transition-all ${hoverExtra}" ${clickAttr}>
     <div class="flex items-start justify-between mb-3">
-      <div class="text-xs font-600 text-slate-400 uppercase tracking-wide">${label}</div>
+      <div class="text-xs font-600 text-slate-600 uppercase tracking-wide">${label}</div>
       <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
-        <i class="fa-solid ${icon} text-sm text-slate-400"></i>
+        <i class="fa-solid ${icon} text-sm text-slate-600"></i>
       </div>
     </div>
-    <div class="mono text-3xl font-700 text-white">${value.toLocaleString()}</div>
+    <div class="mono text-3xl font-700 text-slate-900">${value.toLocaleString()}</div>
     <div class="flex items-center justify-between mt-1">
       <div class="text-xs text-slate-500">${sub}</div>
       ${onclick ? '<div class="text-xs text-brand/60 font-600">View Details →</div>' : ''}
@@ -956,11 +956,11 @@ function showDrillDownModal(title, rows, type) {
     tableHTML = `<table class="data-table w-full">
       <thead><tr><th>Product</th><th>Morning Shift</th><th>Night Shift</th><th>Total Damaged</th><th>Frequency</th></tr></thead>
       <tbody>${sorted.map(p => `<tr>
-        <td class="font-500 text-white">${p.name}</td>
+        <td class="font-500 text-slate-900">${p.name}</td>
         <td class="mono text-amber-400">${p.morning}</td>
         <td class="mono text-purple-400">${p.night}</td>
         <td class="mono font-700 text-red-400">${p.total}</td>
-        <td class="mono text-slate-400">${p.count} entries</td>
+        <td class="mono text-slate-600">${p.count} entries</td>
       </tr>`).join('') || '<tr><td colspan="5" class="text-center text-slate-500 py-6">No damaged stock recorded</td></tr>'}
       </tbody></table>`;
   } else if (type === 'disbursed') {
@@ -977,7 +977,7 @@ function showDrillDownModal(title, rows, type) {
     tableHTML = `<table class="data-table w-full">
       <thead><tr><th>Product</th><th>Morning Shift</th><th>Night Shift</th><th>Total Disbursed</th></tr></thead>
       <tbody>${sorted.map(p => `<tr>
-        <td class="font-500 text-white">${p.name}</td>
+        <td class="font-500 text-slate-900">${p.name}</td>
         <td class="mono text-amber-400">${p.morning}</td>
         <td class="mono text-purple-400">${p.night}</td>
         <td class="mono font-700 text-brand">${p.total}</td>
@@ -990,11 +990,11 @@ function showDrillDownModal(title, rows, type) {
       <thead><tr><th>Date</th><th>Product</th><th>User</th><th>Shift</th><th>Closing</th><th>Remaining</th></tr></thead>
       <tbody>${sorted.map(e => `<tr>
         <td class="mono text-xs">${e.date}</td>
-        <td class="font-500 text-white">${e.productName}</td>
+        <td class="font-500 text-slate-900">${e.productName}</td>
         <td>${e.userName || '—'}</td>
         <td>${getShiftBadgeHTML(e.shift || '')}</td>
         <td class="mono">${e.closing}</td>
-        <td class="mono font-600 text-white">${e.total}</td>
+        <td class="mono font-600 text-slate-900">${e.total}</td>
       </tr>`).join('')}
       </tbody></table>`;
   } else if (type === 'stock') {
@@ -1009,9 +1009,9 @@ function showDrillDownModal(title, rows, type) {
     tableHTML = `<table class="data-table w-full">
       <thead><tr><th>Product</th><th>Total Remaining Stock Recorded</th><th>No. of Entries</th></tr></thead>
       <tbody>${sorted.map(p => `<tr>
-        <td class="font-500 text-white">${p.name}</td>
-        <td class="mono font-700 text-white">${p.total.toLocaleString()}</td>
-        <td class="mono text-slate-400">${p.count}</td>
+        <td class="font-500 text-slate-900">${p.name}</td>
+        <td class="mono font-700 text-slate-900">${p.total.toLocaleString()}</td>
+        <td class="mono text-slate-600">${p.count}</td>
       </tr>`).join('')}
       </tbody></table>`;
   }
@@ -1019,7 +1019,7 @@ function showDrillDownModal(title, rows, type) {
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
       <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-700 text-white">${title}</h3>
+        <h3 class="text-lg font-700 text-slate-900">${title}</h3>
         <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">${tableHTML}</div>
@@ -1106,14 +1106,14 @@ function renderAdminStockTable() {
   if (!tbody) return;
   tbody.innerHTML = paged.map(e => `
     <tr>
-      <td class="font-500 text-white">${e.productName}</td>
+      <td class="font-500 text-slate-900">${e.productName}</td>
       <td>${e.userName}</td>
       <td class="mono">${e.opening}</td>
       <td class="mono">${e.received}</td>
       <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
       <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-      <td class="mono text-slate-400">${e.expected}</td>
-      <td class="mono font-600 text-white">${e.closing}</td>
+      <td class="mono text-slate-600">${e.expected}</td>
+      <td class="mono font-600 text-slate-900">${e.closing}</td>
       <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
       <td>${getShiftBadgeHTML(e.shift)}</td>
       <td class="mono text-xs">${e.date}</td>
@@ -1192,10 +1192,10 @@ function renderProductTable() {
     return `
     <tr>
       <td class="text-slate-500 mono text-xs">${i + 1}</td>
-      <td class="font-600 text-white">${p.name}</td>
+      <td class="font-600 text-slate-900">${p.name}</td>
       <td><span class="chip">${p.unit}</span></td>
       <td>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
-      <td class="mono text-slate-400">${cnt}</td>
+      <td class="mono text-slate-600">${cnt}</td>
       <td class="flex gap-2">
         <button onclick="showProductModal('${p.id}')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen text-xs"></i></button>
         <button onclick="toggleProductStatus('${p.id}')" class="btn btn-ghost btn-sm text-xs">${p.active ? 'Deactivate' : 'Activate'}</button>
@@ -1217,16 +1217,16 @@ function showProductModal(id = null) {
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
       <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-700 text-white">${p ? 'Edit Product' : 'Add New Product'}</h3>
+        <h3 class="text-lg font-700 text-slate-900">${p ? 'Edit Product' : 'Add New Product'}</h3>
         <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Product Name *</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Product Name *</label>
           <input id="pm-name" type="text" class="form-input" value="${p?.name || ''}" placeholder="e.g. Mineral Water 500ml" />
         </div>
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
           <select id="pm-unit" class="form-input">
             ${units.map(u => `<option value="${u}" ${p?.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
           </select>
@@ -1358,10 +1358,10 @@ function renderAdminAudit() {
 
     <!-- Toggle -->
     <div class="flex p-1 bg-slate-800/50 rounded-lg w-fit border border-white/5">
-      <button onclick="setAuditMode('entries')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'entries' ? 'bg-brand text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+      <button onclick="setAuditMode('entries')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'entries' ? 'bg-brand text-slate-900 shadow-lg' : 'text-slate-600 hover:text-slate-900'}">
         Stock Entry History
       </button>
-      <button onclick="setAuditMode('logs')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'logs' ? 'bg-brand text-white shadow-lg' : 'text-slate-400 hover:text-white'}">
+      <button onclick="setAuditMode('logs')" class="px-4 py-1.5 rounded-md text-xs font-600 transition-all ${mode === 'logs' ? 'bg-brand text-slate-900 shadow-lg' : 'text-slate-600 hover:text-slate-900'}">
         System Audit Trail (New)
       </button>
     </div>
@@ -1462,10 +1462,10 @@ function renderAuditLogsView() {
 
     return `
                 <tr>
-                  <td class="mono text-xs text-slate-400">${new Date(log.timestamp).toLocaleString('en-GB')}</td>
-                  <td class="font-600 text-white">${log.user_name || 'System'}</td>
+                  <td class="mono text-xs text-slate-600">${new Date(log.timestamp).toLocaleString('en-GB')}</td>
+                  <td class="font-600 text-slate-900">${log.user_name || 'System'}</td>
                   <td><span class="px-2 py-0.5 rounded text-[10px] font-800 bg-white/5 ${actionClass}">${log.action}</span></td>
-                  <td class="text-xs text-slate-400 capitalize">${log.table_name} #${log.record_id}</td>
+                  <td class="text-xs text-slate-600 capitalize">${log.table_name} #${log.record_id}</td>
                   <td>
                     <div class="max-w-xs overflow-hidden text-ellipsis whitespace-nowrap text-[10px] mono text-slate-500 cursor-help" title="Old: ${oldVal.replace(/"/g, '&quot;')}\n\nNew: ${newVal.replace(/"/g, '&quot;')}">
                       ${log.action === 'DELETE' ? `<span class="text-red-400/50 line-through">${oldVal}</span>` :
@@ -1549,7 +1549,7 @@ function renderAuditTable() {
         <td class="mono ${Number(e.disbursed || 0) > 0 ? 'text-brand' : ''}">${e.disbursed || 0}</td>
         <td class="mono ${Number(e.damaged) > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
         <td class="mono">${e.closing}</td>
-        <td class="mono font-600 text-white">${e.total}</td>
+        <td class="mono font-600 text-slate-900">${e.total}</td>
         <td class="mono ${Number(e.variance) !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
         <td class="mono text-xs text-slate-500">${e.time}</td>
         <td>
@@ -1565,8 +1565,8 @@ function renderAuditTable() {
         <td class="px-4 py-3 mono">${rows.reduce((s, e) => s + Number(e.received || 0), 0)}</td>
         <td class="px-4 py-3 mono text-brand">${rows.reduce((s, e) => s + Number(e.disbursed || 0), 0)}</td>
         <td class="px-4 py-3 mono text-red-400">${rows.reduce((s, e) => s + Number(e.damaged || 0), 0)}</td>
-        <td class="px-4 py-3 mono text-slate-400">${rows.reduce((s, e) => s + (e.expected || 0), 0)}</td>
-        <td class="px-4 py-3 mono text-white">${rows.reduce((s, e) => s + (e.closing || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-slate-600">${rows.reduce((s, e) => s + (e.expected || 0), 0)}</td>
+        <td class="px-4 py-3 mono text-slate-900">${rows.reduce((s, e) => s + (e.closing || 0), 0)}</td>
         <td class="px-4 py-3 mono text-amber-400">${rows.reduce((s, e) => s + Number(e.variance || 0), 0)}</td>
         <td></td>
       </tr>`;
@@ -1583,7 +1583,7 @@ function miniStat(icon, label, val, cls) {
       <i class="fa-solid ${icon} ${cls}"></i>
       <div>
         <div class="text-xs text-slate-500">${label}</div>
-        <div class="mono font-700 text-white">${val.toLocaleString()}</div>
+        <div class="mono font-700 text-slate-900">${val.toLocaleString()}</div>
       </div>
     </div>
   </div>`;
@@ -1921,8 +1921,8 @@ function renderAdminAnalytics() {
     return `
             <div>
               <div class="flex justify-between text-sm mb-1">
-                <span class="text-white font-500 truncate">${p.name}</span>
-                <span class="mono text-slate-400 ml-2 shrink-0">${p.count} entries</span>
+                <span class="text-slate-900 font-500 truncate">${p.name}</span>
+                <span class="mono text-slate-600 ml-2 shrink-0">${p.count} entries</span>
               </div>
               <div class="progress-bar">
                 <div class="progress-fill" style="width:${(p.count / maxCnt) * 100}%"></div>
@@ -1947,13 +1947,13 @@ function renderAdminAnalytics() {
             <div class="flex gap-4">
               <div class="flex-1 glass rounded-xl p-4 text-center">
                 <i class="fa-solid fa-sun text-amber-400 text-2xl mb-2"></i>
-                <div class="mono text-2xl font-700 text-white">${morning.length}</div>
+                <div class="mono text-2xl font-700 text-slate-900">${morning.length}</div>
                 <div class="text-xs text-slate-500">Morning</div>
                 <div class="text-sm font-600 text-amber-400">${mPct}%</div>
               </div>
               <div class="flex-1 glass rounded-xl p-4 text-center">
                 <i class="fa-solid fa-moon text-purple-400 text-2xl mb-2"></i>
-                <div class="mono text-2xl font-700 text-white">${night.length}</div>
+                <div class="mono text-2xl font-700 text-slate-900">${night.length}</div>
                 <div class="text-xs text-slate-500">Night</div>
                 <div class="text-sm font-600 text-purple-400">${nPct}%</div>
               </div>
@@ -1995,7 +1995,7 @@ function renderAdminAnalytics() {
               <i class="fa-solid fa-triangle-exclamation text-xl"></i>
             </div>
             <div>
-              <div class="text-sm font-700 text-white">Damage Reports</div>
+              <div class="text-sm font-700 text-slate-900">Damage Reports</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Historical damage logs</div>
             </div>
           </div>
@@ -2011,7 +2011,7 @@ function renderAdminAnalytics() {
               <i class="fa-solid fa-right-left text-xl"></i>
             </div>
             <div>
-              <div class="text-sm font-700 text-white">Stock In vs Out</div>
+              <div class="text-sm font-700 text-slate-900">Stock In vs Out</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Comparison summary</div>
             </div>
           </div>
@@ -2027,7 +2027,7 @@ function renderAdminAnalytics() {
               <i class="fa-solid fa-clipboard-list text-xl"></i>
             </div>
             <div>
-              <div class="text-sm font-700 text-white">Inventory Summary</div>
+              <div class="text-sm font-700 text-slate-900">Inventory Summary</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Current levels & alerts</div>
             </div>
           </div>
@@ -2043,7 +2043,7 @@ function renderAdminAnalytics() {
               <i class="fa-solid fa-chart-line text-xl"></i>
             </div>
             <div>
-              <div class="text-sm font-700 text-white">Movement Trends</div>
+              <div class="text-sm font-700 text-slate-900">Movement Trends</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Time-series movement</div>
             </div>
           </div>
@@ -2059,7 +2059,7 @@ function renderAdminAnalytics() {
               <i class="fa-solid fa-scale-unbalanced text-xl"></i>
             </div>
             <div>
-              <div class="text-sm font-700 text-white">Loss & Adjustment</div>
+              <div class="text-sm font-700 text-slate-900">Loss & Adjustment</div>
               <div class="text-[10px] text-slate-500 uppercase tracking-wider">Shrinkage tracking</div>
             </div>
           </div>
@@ -2088,7 +2088,7 @@ function openReportModal(type) {
     <div class="p-6">
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h3 class="text-xl font-800 text-white">${titles[type]}</h3>
+          <h3 class="text-xl font-800 text-slate-900">${titles[type]}</h3>
           <p class="text-xs text-slate-500 mt-1">Configure filters and export format</p>
         </div>
         <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
@@ -2126,7 +2126,7 @@ function openReportModal(type) {
                   <i class="fa-solid fa-file-csv text-lg"></i>
                 </div>
                 <div>
-                  <div class="text-sm font-600 text-white">CSV</div>
+                  <div class="text-sm font-600 text-slate-900">CSV</div>
                   <div class="text-[10px] text-slate-500">Excel / Spreadsheet</div>
                 </div>
               </div>
@@ -2138,7 +2138,7 @@ function openReportModal(type) {
                   <i class="fa-solid fa-file-pdf text-lg"></i>
                 </div>
                 <div>
-                  <div class="text-sm font-600 text-white">PDF</div>
+                  <div class="text-sm font-600 text-slate-900">PDF</div>
                   <div class="text-[10px] text-slate-500">Formatted Document</div>
                 </div>
               </div>
@@ -2356,7 +2356,7 @@ function getAnalyticsReportDefinitions() {
     hasDateRange: true,
     orientation: 'landscape',
     value: (row, key) => row?.[key],
-    formatValue: (v) => (v === null || v === undefined || v === '' ? '—' : String(v)),
+    formatValue: (v) => (v === null || v === undefined || v === '' ? '— ' : String(v)),
     computeSummary: (data, summary) => ({ cards: summary ? Object.entries(summary).map(([k, v]) => ({ label: titleize(k), value: v })) : [] })
   };
 
@@ -2509,9 +2509,9 @@ function getAnalyticsReportDefinitions() {
   };
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ 
 //  USER DASHBOARD (Stock Entry Form)
-// ════════════════════════════════════════════════════════════════════════════
+// ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ 
 function renderUserDashboard() {
   const products = db_products.filter(p => p.active);
   const shift = getCurrentShift();
@@ -2525,8 +2525,8 @@ function renderUserDashboard() {
     <!-- Welcome + Shift -->
     <div class="glass rounded-xl p-5 flex flex-col lg:flex-row lg:items-center gap-6">
       <div class="flex-1">
-        <div class="text-slate-400 text-sm">Welcome back,</div>
-        <div class="text-xl font-700 text-white mt-0.5">${currentUser.name}</div>
+        <div class="text-slate-600 text-sm">Welcome back,</div>
+        <div class="text-xl font-700 text-slate-900 mt-0.5">${currentUser.name}</div>
         <div class="text-sm text-slate-500 mt-1">${new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
       </div>
       
@@ -2546,7 +2546,7 @@ function renderUserDashboard() {
     <!-- Quick stats row -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 text-white">${today.length}</div>
+        <div class="mono text-2xl font-700 text-slate-900">${today.length}</div>
         <div class="text-xs text-slate-500 mt-1 text-nowrap">Entries Today</div>
       </div>
       <div class="glass rounded-xl p-4 text-center border-l-4 border-brand/40">
@@ -2558,7 +2558,7 @@ function renderUserDashboard() {
         <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Damaged</div>
       </div>
       <div class="glass rounded-xl p-4 text-center">
-        <div class="mono text-2xl font-700 text-white">${today.reduce((s, e) => s + (Number(e.closing) || 0), 0)}</div>
+        <div class="mono text-2xl font-700 text-slate-900">${today.reduce((s, e) => s + (Number(e.closing) || 0), 0)}</div>
         <div class="text-xs text-slate-500 mt-1 text-nowrap">Total Closing Stock</div>
       </div>
     </div>
@@ -2579,9 +2579,9 @@ function renderUserDashboard() {
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- Product -->
         <div class="sm:col-span-2 lg:col-span-1">
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Product *</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Product *</label>
           <select id="f-product" class="form-input" onchange="updateUnit()">
-            <option value="">— Select Product —</option>
+            <option value="">—  Select Product — </option>
             ${products.map(p => `<option value="${p.id}" data-unit="${p.unit}">${p.name}</option>`).join('')}
           </select>
           <div id="f-unit-hint" class="text-xs text-slate-600 mt-1"></div>
@@ -2589,31 +2589,31 @@ function renderUserDashboard() {
 
         <!-- Opening Stock -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Opening Stock *</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Opening Stock *</label>
           <input id="f-opening" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Received -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Received</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Stock Received</label>
           <input id="f-received" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Stock Out -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Stock Out / Disbursed</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Stock Out / Disbursed</label>
           <input id="f-disbursed" type="text" inputmode="numeric" class="form-input border-brand/20 shadow-inner" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Damaged -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Damaged Stock</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Damaged Stock</label>
           <input id="f-damaged" type="text" inputmode="numeric" class="form-input" placeholder="0" oninput="calcStock()" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
         <!-- Closing -->
         <div>
-          <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">Closing Stock *</label>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Closing Stock *</label>
           <input id="f-closing" type="text" inputmode="numeric" class="form-input lg:col-span-1" placeholder="0" oninput="calcStock('closing')" onkeypress="return event.charCode >= 48 && event.charCode <= 57" />
         </div>
 
@@ -2621,12 +2621,12 @@ function renderUserDashboard() {
         <div class="glass rounded-xl p-4 flex flex-col justify-center">
           <div class="text-xs text-slate-500 uppercase tracking-wide mb-2 font-600">Auto Calculated</div>
           <div class="flex justify-between items-center mb-1">
-            <span class="text-xs text-slate-400">Remaining Stock:</span>
-            <span id="calc-total" class="mono font-700 text-white">—</span>
+            <span class="text-xs text-slate-500">Remaining Stock:</span>
+            <span id="calc-total" class="mono font-700 text-slate-900">— </span>
           </div>
           <div class="flex justify-between items-center">
-            <span class="text-xs text-slate-400">Variance:</span>
-            <span id="calc-variance" class="mono font-700 text-slate-400">—</span>
+            <span class="text-xs text-slate-500">Variance:</span>
+            <span id="calc-variance" class="mono font-700 text-slate-600">— </span>
           </div>
         </div>
       </div>
@@ -2668,13 +2668,13 @@ function renderUserDashboard() {
           <tbody>
             ${today.map(e => `
             <tr>
-              <td class="font-500 text-white">${e.productName}</td>
+              <td class="font-500 text-slate-900">${e.productName}</td>
               <td class="mono">${e.opening}</td>
               <td class="mono">${e.received}</td>
               <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
               <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-              <td class="mono text-slate-400">${e.expected}</td>
-              <td class="mono font-600 text-white">${e.closing}</td>
+              <td class="mono text-slate-600">${e.expected}</td>
+              <td class="mono font-600 text-slate-900">${e.closing}</td>
               <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
               <td class="mono text-xs text-slate-500">${e.time}</td>
               <td>
@@ -2725,7 +2725,7 @@ function editEntry(id) {
   document.getElementById('modal-content').innerHTML = `
     <div class="p-6">
       <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-700 text-white">Edit Stock Entry</h3>
+        <h3 class="text-lg font-700 text-slate-900">Edit Stock Entry</h3>
         <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
       
@@ -2735,7 +2735,7 @@ function editEntry(id) {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <div class="text-xs text-slate-500 mb-1 font-600">Product</div>
-              <div class="text-white font-600">${e.productName}</div>
+              <div class="text-slate-900 font-600">${e.productName}</div>
             </div>
             <div>
               <div class="text-xs text-slate-500 mb-1 font-600">Opening Stock (from previous)</div>
@@ -2759,7 +2759,7 @@ function editEntry(id) {
             <input id="em-damaged" type="text" inputmode="numeric" class="form-input border-brand/30" value="0" oninput="calcEditStock()" onfocus="this.select()" />
           </div>
           <div>
-            <label class="block text-xs font-600 text-slate-400 mb-1.5 uppercase tracking-wide">New Closing (Physical)</label>
+            <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">New Closing (Physical)</label>
             <input id="em-closing" type="text" inputmode="numeric" class="form-input" value="${e.closing}" oninput="calcEditStock('closing')" onfocus="this.select()" />
           </div>
         </div>
@@ -2768,12 +2768,12 @@ function editEntry(id) {
         <div class="glass rounded-xl p-4 border border-brand/30 bg-brand/10">
           <div class="grid grid-cols-3 gap-4">
             <div class="col-span-2">
-              <div class="text-xs text-slate-400 mb-1 font-600">Calculated (Expected) Stock</div>
-              <div id="em-total" class="mono text-2xl font-700 text-white">—</div>
+              <div class="text-xs text-slate-600 mb-1 font-600">Calculated (Expected) Stock</div>
+              <div id="em-total" class="mono text-2xl font-700 text-slate-900">—</div>
             </div>
             <div>
-              <div class="text-xs text-slate-400 mb-1 font-600">Variance</div>
-              <div id="em-variance" class="mono text-2xl font-700 text-slate-400">—</div>
+              <div class="text-xs text-slate-600 mb-1 font-600">Variance</div>
+              <div id="em-variance" class="mono text-2xl font-700 text-slate-600">—</div>
             </div>
           </div>
         </div>
