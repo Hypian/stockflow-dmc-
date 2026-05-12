@@ -1,5 +1,8 @@
 *, *::before, *::after { box-sizing: border-box; }
-  body { font-family: 'Sora', sans-serif; background: #f8fafc; color: #0f172a; }
+  html, body { min-height: 100%; overflow-x: hidden; }
+  body { font-family: 'Sora', sans-serif; background: #f8fafc; color: #0f172a; overflow-y: auto; }
+  #app-shell, #main-content { min-height: 100vh; }
+  #main-content { overflow-y: auto; }
   .mono { font-family: 'DM Mono', monospace; }
 
   /* Scrollbar */

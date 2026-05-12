@@ -746,14 +746,19 @@ function getLowStockHTML() {
     const pEntries = entriesByProduct[p.id];
     if (!pEntries || pEntries.length === 0) return;
 
-    // Find latest entry (pEntries is mostly chronological from API)
-    const latest = [...pEntries].sort((a, b) => {
-      const dateCmp = b.date.localeCompare(a.date);
-      return dateCmp !== 0 ? dateCmp : b.time.localeCompare(a.time);
-    })[0];
+    const sortedEntries = [...pEntries].sort((a, b) => {
+      const aDate = new Date(`${a.date}T${a.time || '00:00:00'}`);
+      const bDate = new Date(`${b.date}T${b.time || '00:00:00'}`);
+      if (bDate.getTime() !== aDate.getTime()) return bDate.getTime() - aDate.getTime();
 
+      const aCreated = new Date(a.created_at || a.createdAt || 0).getTime();
+      const bCreated = new Date(b.created_at || b.createdAt || 0).getTime();
+      return bCreated - aCreated;
+    });
+
+    const latest = sortedEntries.find(e => e.closing !== null && e.closing !== undefined);
     const currentStock = latest ? Number(latest.closing) : 0;
-    const maxHistorical = Math.max(...pEntries.map(e => Number(e.closing)));
+    const maxHistorical = Math.max(...pEntries.map(e => Number(e.closing || 0)));
     const threshold = maxHistorical * 0.35;
 
     if (maxHistorical > 0 && currentStock <= threshold && currentStock < maxHistorical) {
