@@ -734,6 +734,7 @@ function getLowStockHTML() {
   const entries = db_entries;
   const products = db_products.filter(p => p.active);
   const lowStock = [];
+  const LOW_STOCK_THRESHOLD_PCT = 35; // Threshold: 35% of historical max
 
   // Index entries by productId for O(E) pre-processing
   const entriesByProduct = {};
@@ -746,6 +747,7 @@ function getLowStockHTML() {
     const pEntries = entriesByProduct[p.id];
     if (!pEntries || pEntries.length === 0) return;
 
+    // Sort entries by date/time to find latest
     const sortedEntries = [...pEntries].sort((a, b) => {
       const aDate = new Date(`${a.date}T${a.time || '00:00:00'}`);
       const bDate = new Date(`${b.date}T${b.time || '00:00:00'}`);
@@ -756,13 +758,25 @@ function getLowStockHTML() {
       return bCreated - aCreated;
     });
 
-    const latest = sortedEntries.find(e => e.closing !== null && e.closing !== undefined);
-    const currentStock = latest ? Number(latest.closing) : 0;
-    const maxHistorical = Math.max(...pEntries.map(e => Number(e.closing || 0)));
-    const threshold = maxHistorical * 0.35;
+    // Get latest entry with valid closing stock
+    const latest = sortedEntries.find(e => e.closing !== null && e.closing !== undefined && Number(e.closing) > 0);
+    if (!latest) return; // Skip if no valid closing stock found
+    
+    const currentStock = Number(latest.closing);
 
-    if (maxHistorical > 0 && currentStock <= threshold && currentStock < maxHistorical) {
-      lowStock.push({ name: p.name, stock: currentStock, unit: p.unit, pct: Math.round((currentStock / maxHistorical) * 100) });
+    // Calculate historical max from entries with valid closing values
+    const validClosings = pEntries
+      .map(e => Number(e.closing || 0))
+      .filter(v => v > 0);
+    
+    if (validClosings.length === 0) return; // Skip if no valid historical data
+    
+    const maxHistorical = Math.max(...validClosings);
+    const stockPercentage = Math.round((currentStock / maxHistorical) * 100);
+
+    // Trigger alert if current stock is at or below the threshold percentage
+    if (stockPercentage <= LOW_STOCK_THRESHOLD_PCT) {
+      lowStock.push({ name: p.name, stock: currentStock, unit: p.unit, pct: stockPercentage });
     }
   });
 
@@ -785,8 +799,7 @@ function getLowStockHTML() {
       <div class="flex flex-wrap gap-2 relative z-10">
         ${lowStock.map(p => `
           <span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
-            ${p.name}: <strong class="text-slate-900 ml-1">${p.stock}</strong> 
-            <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded-md bg-red-500/20 font-700">${p.pct}%</span>
+            ${p.name}: <strong class="text-slate-900 ml-1">${p.stock} ${p.unit} (${p.pct}%)</strong>
           </span>`).join('')}
       </div>
     </div>
@@ -1173,7 +1186,7 @@ function renderAdminProducts() {
       </div>
       <div class="overflow-x-auto">
         <table class="data-table">
-          <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Status</th><th>Entries</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Status</th><th>Current Stock</th><th>Entries</th><th>Actions</th></tr></thead>
           <tbody id="prod-tbody"></tbody>
         </table>
       </div>
@@ -1186,28 +1199,120 @@ function renderProductTable() {
   const products = db_products.filter(p => !search || p.name.toLowerCase().includes(search));
   const entries = db_entries;
 
-  // Optim optimization: Pre-calculate counts to avoid O(P * E)
-  const productCounts = {};
-  entries.forEach(e => { productCounts[e.productId] = (productCounts[e.productId] || 0) + 1; });
+  // Pre-calculate counts and current stock to avoid O(P * E)
+  const productData = {};
+  entries.forEach(e => {
+    if (!productData[e.productId]) {
+      productData[e.productId] = { count: 0, latestClosing: null, latestDate: null, latestTime: null };
+    }
+    productData[e.productId].count++;
+    
+    // Track latest entry by date and time
+    const entryDate = new Date(`${e.date}T${e.time || '00:00:00'}`);
+    const latestDate = productData[e.productId].latestDate ? new Date(`${productData[e.productId].latestDate}T${productData[e.productId].latestTime || '00:00:00'}`) : null;
+    
+    if (!latestDate || entryDate > latestDate) {
+      productData[e.productId].latestClosing = Number(e.closing || 0);
+      productData[e.productId].latestDate = e.date;
+      productData[e.productId].latestTime = e.time;
+    }
+  });
 
   const tbody = document.getElementById('prod-tbody');
   if (!tbody) return;
   tbody.innerHTML = products.map((p, i) => {
-    const cnt = productCounts[p.id] || 0;
+    const data = productData[p.id] || { count: 0, latestClosing: 0 };
+    const currentStock = data.latestClosing || 0;
     return `
     <tr>
       <td class="text-slate-500 mono text-xs">${i + 1}</td>
-      <td class="font-600 text-slate-900">${p.name}</td>
+      <td class="font-600 text-slate-900 cursor-pointer hover:text-brand transition-colors" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${p.name}</td>
       <td><span class="chip">${p.unit}</span></td>
       <td>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
-      <td class="mono text-slate-600">${cnt}</td>
+      <td class="mono font-600 text-slate-900 cursor-pointer hover:text-brand" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${currentStock} ${p.unit}</td>
+      <td class="mono text-slate-600">${data.count}</td>
       <td class="flex gap-2">
         <button onclick="showProductModal('${p.id}')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen text-xs"></i></button>
         <button onclick="toggleProductStatus('${p.id}')" class="btn btn-ghost btn-sm text-xs">${p.active ? 'Deactivate' : 'Activate'}</button>
         <button onclick="deleteProduct('${p.id}')" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash text-xs"></i></button>
       </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" class="text-center text-slate-500 py-10">No products found</td></tr>';
+  }).join('') || '<tr><td colspan="7" class="text-center text-slate-500 py-10">No products found</td></tr>';
+}
+
+function showProductStockModal(productId) {
+  const product = db_products.find(p => String(p.id) === String(productId));
+  if (!product) {
+    showToast('Product not found', 'error');
+    return;
+  }
+
+  const productEntries = db_entries.filter(e => String(e.productId) === String(productId));
+  const latestEntry = productEntries.length > 0 
+    ? [...productEntries].sort((a, b) => {
+        const aDate = new Date(`${a.date}T${a.time || '00:00:00'}`);
+        const bDate = new Date(`${b.date}T${b.time || '00:00:00'}`);
+        return bDate.getTime() - aDate.getTime();
+      })[0]
+    : null;
+
+  const maxHistorical = productEntries.length > 0 ? Math.max(...productEntries.map(e => Number(e.closing || 0))) : 0;
+  const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
+  const stockLevel = maxHistorical > 0 ? Math.round((currentStock / maxHistorical) * 100) : 0;
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-700 text-slate-900">${product.name}</h2>
+          <p class="text-xs text-slate-500 mt-1">Stock Overview</p>
+        </div>
+        <button onclick="closeModal()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Current Stock</div>
+          <div class="text-2xl font-700 text-slate-900">${currentStock}</div>
+          <div class="text-xs text-slate-500 mt-1">${product.unit}</div>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Stock Level</div>
+          <div class="text-2xl font-700 ${stockLevel <= 35 ? 'text-red-500' : 'text-green-500'}">${stockLevel}%</div>
+          <div class="text-xs text-slate-500 mt-1">of historical max</div>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Max Historical</div>
+          <div class="text-2xl font-700 text-slate-900">${maxHistorical}</div>
+          <div class="text-xs text-slate-500 mt-1">${product.unit}</div>
+        </div>
+
+        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Total Entries</div>
+          <div class="text-2xl font-700 text-slate-900">${productEntries.length}</div>
+          <div class="text-xs text-slate-500 mt-1">records</div>
+        </div>
+      </div>
+
+      ${latestEntry ? `
+        <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
+          <div class="text-xs text-blue-600 uppercase tracking-wider font-600 mb-2">Latest Entry</div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div><span class="text-slate-500">Date:</span> <span class="font-600">${latestEntry.date}</span></div>
+            <div><span class="text-slate-500">Time:</span> <span class="font-600">${latestEntry.time}</span></div>
+            <div><span class="text-slate-500">User:</span> <span class="font-600">${latestEntry.userName}</span></div>
+            <div><span class="text-slate-500">Shift:</span> <span class="font-600 capitalize">${latestEntry.shift}</span></div>
+          </div>
+        </div>
+      ` : '<div class="p-3 rounded-lg bg-slate-100 text-center text-slate-500 text-xs">No entries yet</div>'}
+
+      <button onclick="closeModal()" class="btn btn-secondary w-full">Close</button>
+    </div>
+  `;
+
+  document.getElementById('modal').classList.remove('hidden');
 }
 
 function showProductModal(id = null) {
