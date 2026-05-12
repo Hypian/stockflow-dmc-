@@ -785,20 +785,20 @@ function getLowStockHTML() {
   lowStock.sort((a, b) => a.stock - b.stock);
 
   return `
-    <div class="glass rounded-xl p-4 glow-red border border-red-500/30 animate-fade-in relative overflow-hidden">
-      <div class="absolute right-0 top-0 w-32 h-32 bg-red-500/10 blur-3xl -z-10 rounded-full"></div>
+    <div class="glass rounded-xl p-4 glow-red border border-red-600/40 animate-fade-in relative overflow-hidden">
+      <div class="absolute right-0 top-0 w-32 h-32 bg-red-700/10 blur-3xl -z-10 rounded-full"></div>
       <div class="flex items-center gap-3 mb-3 relative z-10">
-        <div class="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+        <div class="w-10 h-10 rounded-xl bg-red-700/20 flex items-center justify-center text-red-600 border border-red-600/30 shadow-[0_0_15px_rgba(185,28,28,0.4)]">
           <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
         </div>
         <div>
-          <div class="font-700 text-red-400 text-sm">Low Stock Alert (Threshold: 35%)</div>
-          <div class="text-xs text-red-400/80">The following items are below 35% of their historical maximum stock level.</div>
+          <div class="font-700 text-red-600 text-sm">Low Stock Alert (Threshold: 35%)</div>
+          <div class="text-xs text-red-600/80">The following items are below 35% of their historical maximum stock level.</div>
         </div>
       </div>
       <div class="flex flex-wrap gap-2 relative z-10">
         ${lowStock.map(p => `
-          <span class="chip border-red-500/40 text-red-200 bg-red-500/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
+          <span class="chip border-red-600/40 text-red-700 bg-red-700/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
             ${p.name}: <strong class="text-slate-900 ml-1">${p.stock} ${p.unit} (${p.pct}%)</strong>
           </span>`).join('')}
       </div>
