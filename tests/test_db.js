@@ -1,4 +1,4 @@
-const { query } = require('./backend/config/db');
+const { query } = require('../backend/config/db');
 
 async function test() {
   try {

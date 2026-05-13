@@ -940,14 +940,14 @@ function statCard(icon, label, value, badgeCls, sub, onclick = '') {
   const clickAttr = onclick ? `onclick="${onclick}" style="cursor:pointer;"` : '';
   const hoverExtra = onclick ? 'ring-1 ring-white/10 hover:ring-brand/50 hover:shadow-brand/10 hover:shadow-lg' : '';
   return `
-  <div class="glass rounded-xl p-5 glass-hover transition-all ${hoverExtra}" ${clickAttr}>
+  <div class="glass rounded-xl p-5 glass-hover transition-all ${hoverExtra} stat-card" ${clickAttr}>
     <div class="flex items-start justify-between mb-3">
       <div class="text-xs font-600 text-slate-600 uppercase tracking-wide">${label}</div>
       <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
         <i class="fa-solid ${icon} text-sm text-slate-600"></i>
       </div>
     </div>
-    <div class="mono text-3xl font-700 text-slate-900">${value.toLocaleString()}</div>
+    <div class="mono text-3xl sm:text-3xl text-2xl font-700 text-slate-900 break-words whitespace-normal" style="overflow-wrap:anywhere; word-break:break-word;">${value.toLocaleString()}</div>
     <div class="flex items-center justify-between mt-1">
       <div class="text-xs text-slate-500">${sub}</div>
       ${onclick ? '<div class="text-xs text-brand/60 font-600">View Details →</div>' : ''}
@@ -1034,17 +1034,21 @@ function showDrillDownModal(title, rows, type) {
       </tbody></table>`;
   }
 
+  const subtitle = rows.length ? `${rows.length} records available` : 'No records to display yet.';
   document.getElementById('modal-content').innerHTML = `
-    <div class="p-6">
-      <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-700 text-slate-900">${title}</h3>
-        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">${title}</h3>
+        <p class="modal-subtitle">${subtitle} — tap or scroll to explore detailed analytics.</p>
       </div>
+      <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
       <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">${tableHTML}</div>
-      <div class="flex gap-3 mt-4">
-        <button onclick="closeModal()" class="btn btn-secondary flex-1 justify-center">Close</button>
-        <button onclick="navigateTo('admin-audit')" class="btn btn-primary flex-1 justify-center"><i class="fa-solid fa-arrow-right"></i> Full Audit</button>
-      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal()" class="btn btn-secondary">Close</button>
+      <button onclick="navigateTo('admin-audit')" class="btn btn-primary"><i class="fa-solid fa-arrow-right"></i> Full Audit</button>
     </div>`;
   openModal();
 }
@@ -1261,54 +1265,51 @@ function showProductStockModal(productId) {
   const stockLevel = maxHistorical > 0 ? Math.round((currentStock / maxHistorical) * 100) : 0;
 
   document.getElementById('modal-content').innerHTML = `
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-lg font-700 text-slate-900">${product.name}</h2>
-          <p class="text-xs text-slate-500 mt-1">Stock Overview</p>
-        </div>
-        <button onclick="closeModal()" class="btn btn-ghost btn-sm"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title">${product.name}</h2>
+        <p class="modal-subtitle">A snapshot of current stock, historical highs, and recent activity.</p>
       </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Current Stock</div>
-          <div class="text-2xl font-700 text-slate-900">${currentStock}</div>
+      <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body space-y-4">
+      <div class="modal-card-grid">
+        <div class="modal-card">
+          <div class="label">Current Stock</div>
+          <div class="value">${currentStock}</div>
           <div class="text-xs text-slate-500 mt-1">${product.unit}</div>
         </div>
-
-        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Stock Level</div>
-          <div class="text-2xl font-700 ${stockLevel <= 35 ? 'text-red-500' : 'text-green-500'}">${stockLevel}%</div>
+        <div class="modal-card">
+          <div class="label">Stock Level</div>
+          <div class="value ${stockLevel <= 35 ? 'text-red-500' : 'text-green-500'}">${stockLevel}%</div>
           <div class="text-xs text-slate-500 mt-1">of historical max</div>
         </div>
-
-        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Max Historical</div>
-          <div class="text-2xl font-700 text-slate-900">${maxHistorical}</div>
+        <div class="modal-card">
+          <div class="label">Max Historical</div>
+          <div class="value">${maxHistorical}</div>
           <div class="text-xs text-slate-500 mt-1">${product.unit}</div>
         </div>
-
-        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
-          <div class="text-xs text-slate-500 uppercase tracking-wider font-600 mb-1">Total Entries</div>
-          <div class="text-2xl font-700 text-slate-900">${productEntries.length}</div>
+        <div class="modal-card">
+          <div class="label">Total Entries</div>
+          <div class="value">${productEntries.length}</div>
           <div class="text-xs text-slate-500 mt-1">records</div>
         </div>
       </div>
 
       ${latestEntry ? `
-        <div class="p-3 rounded-lg bg-blue-50 border border-blue-200">
-          <div class="text-xs text-blue-600 uppercase tracking-wider font-600 mb-2">Latest Entry</div>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div><span class="text-slate-500">Date:</span> <span class="font-600">${latestEntry.date}</span></div>
-            <div><span class="text-slate-500">Time:</span> <span class="font-600">${latestEntry.time}</span></div>
-            <div><span class="text-slate-500">User:</span> <span class="font-600">${latestEntry.userName}</span></div>
-            <div><span class="text-slate-500">Shift:</span> <span class="font-600 capitalize">${latestEntry.shift}</span></div>
+        <div class="modal-card">
+          <div class="label">Latest Entry</div>
+          <div class="grid grid-cols-2 gap-3 text-sm text-slate-600">
+            <div><span class="font-600 text-slate-900">Date:</span> ${latestEntry.date}</div>
+            <div><span class="font-600 text-slate-900">Time:</span> ${latestEntry.time}</div>
+            <div><span class="font-600 text-slate-900">User:</span> ${latestEntry.userName}</div>
+            <div><span class="font-600 text-slate-900">Shift:</span> ${latestEntry.shift}</div>
           </div>
         </div>
-      ` : '<div class="p-3 rounded-lg bg-slate-100 text-center text-slate-500 text-xs">No entries yet</div>'}
-
-      <button onclick="closeModal()" class="btn btn-secondary w-full">Close</button>
+      ` : '<div class="modal-card text-center text-slate-500 text-sm">No entries recorded for this product yet.</div>'}
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal()" class="btn btn-secondary">Close</button>
     </div>
   `;
 
@@ -1325,33 +1326,34 @@ function showProductModal(id = null) {
   const units = ['pcs', 'cartons', 'kgs', 'ltrs', 'bags', 'boxes', 'bottles', 'rolls', 'qty', 'crate', 'unit', 'pack', 'tray', 'gallon'];
 
   document.getElementById('modal-content').innerHTML = `
-    <div class="p-6">
-      <div class="flex items-center justify-between mb-5">
-        <h3 class="text-lg font-700 text-slate-900">${p ? 'Edit Product' : 'Add New Product'}</h3>
-        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">${p ? 'Edit Product' : 'Add New Product'}</h3>
+        <p class="modal-subtitle">${p ? 'Update product details and availability in the catalogue.' : 'Create a new product entry for fast stock recording.'}</p>
       </div>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Product Name *</label>
-          <input id="pm-name" type="text" class="form-input" value="${p?.name || ''}" placeholder="e.g. Mineral Water 500ml" />
-        </div>
-        <div>
-          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
-          <select id="pm-unit" class="form-input">
-            ${units.map(u => `<option value="${u}" ${p?.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
-          </select>
-        </div>
-        <div class="flex items-center gap-3 p-3 glass rounded-xl">
-          <input id="pm-active" type="checkbox" class="w-4 h-4 accent-amber-500" ${p?.active !== false ? 'checked' : ''} />
-          <label class="text-sm text-slate-300">Active (visible to staff)</label>
-        </div>
+      <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body space-y-4">
+      <div>
+        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Product Name *</label>
+        <input id="pm-name" type="text" class="form-input" value="${p?.name || ''}" placeholder="e.g. Mineral Water 500ml" />
       </div>
-      <div class="flex gap-3 mt-6">
-        <button onclick="closeModal()" class="btn btn-secondary flex-1 justify-center">Cancel</button>
-        <button onclick="saveProduct('${id || ''}')" class="btn btn-primary flex-1 justify-center">
-          <i class="fa-solid fa-check"></i> ${p ? 'Save Changes' : 'Add Product'}
-        </button>
+      <div>
+        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
+        <select id="pm-unit" class="form-input">
+          ${units.map(u => `<option value="${u}" ${p?.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+        </select>
       </div>
+      <div class="flex items-center gap-3 p-3 glass rounded-xl">
+        <input id="pm-active" type="checkbox" class="w-4 h-4 accent-amber-500" ${p?.active !== false ? 'checked' : ''} />
+        <label class="text-sm text-slate-500">Active (visible to staff)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+      <button onclick="saveProduct('${id || ''}')" class="btn btn-primary">
+        <i class="fa-solid fa-check"></i> ${p ? 'Save Changes' : 'Add Product'}
+      </button>
     </div>`;
   openModal();
 }

@@ -1,0 +1,14 @@
+{
+  "name": "stockflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StockFlow inventory project with backend API and frontend UI assets.",
+  "scripts": {
+    "backend": "node backend/server.js",
+    "test:db": "node tests/test_db.js",
+    "test:report": "node tests/test_report.js",
+    "test:health": "node tests/test_5001.js",
+    "test:integration": "node tests/test_full_report.js",
+    "test": "npm run test:db"
+  }
+}
