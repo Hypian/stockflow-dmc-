@@ -223,3 +223,52 @@
   /* Chip */
   .chip { display:inline-flex; align-items:center; gap:.3rem; padding:.25rem .65rem;
     border-radius:.375rem; background:#f1f5f9; color:#475569; font-size:.78rem; border:1px solid #e2e8f0; }
+
+  /* Mobile-friendly table display */
+  .table-cards { display:none; }
+  .table-cards.mobile-view { display:flex; flex-direction:column; gap:1rem; }
+  .table-card { background:#ffffff; border:1px solid #e2e8f0; border-radius:.75rem; padding:1.25rem;
+    display:grid; grid-template-columns:1fr 1fr; gap:1rem; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+  .table-card.lg { grid-template-columns:repeat(3,1fr); }
+  .table-card-row { display:flex; flex-direction:column; }
+  .table-card-label { font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:.4rem; font-weight:600; }
+  .table-card-value { font-size:1rem; font-weight:600; color:#0f172a; }
+  .table-card-value.mono { font-family:'DM Mono',monospace; }
+  .table-card-value.highlight { color:#0ea5e9; }
+  .table-card-value.red { color:#ef4444; }
+  .table-card-value.green { color:#22c55e; }
+  .table-card-value.amber { color:#f59e0b; }
+
+  /* Low stock display - mobile compact */
+  .low-stock-chips { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .low-stock-brief { max-height:3.5rem; overflow:hidden; }
+  .low-stock-brief.expanded { max-height:none; }
+
+  /* Product card list */
+  .product-cards { display:none; gap:1rem; }
+  .product-cards.show { display:flex; flex-direction:column; }
+  .product-card { background:#ffffff; border:1px solid #e2e8f0; border-radius:.75rem; padding:1rem;
+    display:flex; justify-content:space-between; align-items:flex-start; cursor:pointer; transition:all .2s; }
+  .product-card:hover { border-color:#0ea5e9; box-shadow:0 4px 12px rgba(14,165,233,.1); }
+  .product-card-info { flex:1; }
+  .product-card-name { font-weight:600; color:#0f172a; margin-bottom:.25rem; }
+  .product-card-meta { font-size:.8rem; color:#64748b; display:flex; gap:1rem; flex-wrap:wrap; }
+  .product-card-actions { display:flex; gap:.5rem; }
+
+  /* Stock entry card list */
+  .entry-cards { display:none; flex-direction:column; gap:1rem; }
+  .entry-cards.show { display:flex; }
+  .entry-card { background:#ffffff; border:1px solid #e2e8f0; border-radius:.75rem; padding:1rem; }
+  .entry-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.75rem; border-bottom:1px solid #f1f5f9; padding-bottom:.75rem; }
+  .entry-card-title { font-weight:600; color:#0f172a; }
+  .entry-card-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; }
+  .entry-card-item { display:flex; flex-direction:column; }
+  .entry-card-label { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:.3rem; font-weight:500; }
+  .entry-card-value { font-size:.95rem; font-weight:600; color:#0f172a; font-family:'DM Mono',monospace; }
+
+  @media (max-width:768px) {
+    .table-desktop { display:none; }
+    .table-cards { display:flex; flex-direction:column; gap:1rem; }
+    .product-cards { display:flex; flex-direction:column; gap:1rem; }
+    .entry-cards { display:flex; flex-direction:column; gap:1rem; }
+  }

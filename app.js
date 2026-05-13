@@ -785,25 +785,39 @@ function getLowStockHTML() {
   lowStock.sort((a, b) => a.stock - b.stock);
 
   return `
-    <div class="glass rounded-xl p-4 glow-red border border-red-600/40 animate-fade-in relative overflow-hidden">
+    <div class="glass rounded-xl p-4 glow-red border border-red-600/40 animate-fade-in relative overflow-hidden" onclick="toggleLowStockExpand(event)">
       <div class="absolute right-0 top-0 w-32 h-32 bg-red-700/10 blur-3xl -z-10 rounded-full"></div>
       <div class="flex items-center gap-3 mb-3 relative z-10">
         <div class="w-10 h-10 rounded-xl bg-red-700/20 flex items-center justify-center text-red-600 border border-red-600/30 shadow-[0_0_15px_rgba(185,28,28,0.4)]">
           <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
         </div>
-        <div>
+        <div class="flex-1">
           <div class="font-700 text-red-600 text-sm">Low Stock Alert (Threshold: 35%)</div>
-          <div class="text-xs text-red-600/80">The following items are below 35% of their historical maximum stock level.</div>
+          <div class="text-xs text-red-600/80 hidden md:block">The following items are below 35% of their historical maximum stock level.</div>
+          <div class="text-xs text-red-600/80 md:hidden">${lowStock.length} item${lowStock.length > 1 ? 's' : ''} below threshold</div>
         </div>
+        <button class="btn btn-ghost btn-sm p-1 md:hidden" onclick="toggleLowStockExpand(event)" title="Expand"><i class="fa-solid fa-chevron-down"></i></button>
       </div>
-      <div class="flex flex-wrap gap-2 relative z-10">
+      <div class="low-stock-chips low-stock-brief md:low-stock-brief relative z-10">
         ${lowStock.map(p => `
-          <span class="chip border-red-600/40 text-red-700 bg-red-700/10 shadow-sm" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
-            ${p.name}: <strong class="text-slate-900 ml-1">${p.stock} ${p.unit} (${p.pct}%)</strong>
+          <span class="chip border-red-600/40 text-red-700 bg-red-700/10 shadow-sm text-nowrap" title="Historical Max: ${Math.round(p.stock / (p.pct / 100)) || '?'}">
+            ${p.name}: <strong class="text-slate-900 ml-1">${p.stock}${p.unit.charAt(0) || ''} (${p.pct}%)</strong>
           </span>`).join('')}
       </div>
     </div>
   `;
+}
+
+function toggleLowStockExpand(e) {
+  if (window.innerWidth < 768) {
+    const section = e.currentTarget;
+    const chips = section.querySelector('.low-stock-chips');
+    chips?.classList.toggle('expanded');
+    const btn = section.querySelector('button');
+    if (btn) btn.innerHTML = chips?.classList.contains('expanded') 
+      ? '<i class="fa-solid fa-chevron-up"></i>' 
+      : '<i class="fa-solid fa-chevron-down"></i>';
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1085,7 +1099,8 @@ function renderAdminStock() {
         <div class="section-title">All Stock Entries</div>
         <div id="as-count" class="text-xs text-slate-500"></div>
       </div>
-      <div class="overflow-x-auto">
+      <!-- Desktop Table View -->
+      <div class="table-desktop overflow-x-auto hidden md:block">
         <table class="data-table">
           <thead><tr>
             <th>Product</th><th>User</th><th>Opening</th><th>Received</th>
@@ -1095,6 +1110,8 @@ function renderAdminStock() {
           <tbody id="as-tbody"></tbody>
         </table>
       </div>
+      <!-- Mobile Card View -->
+      <div id="as-cards" class="entry-cards p-4"></div>
       <div id="as-pagination" class="flex items-center justify-between p-4 border-t border-white/5"></div>
     </div>
   </div>`;
@@ -1124,29 +1141,82 @@ function renderAdminStockTable() {
   if (asPage > totalPages) asPage = 1;
   const paged = rows.slice((asPage - 1) * asPerPage, asPage * asPerPage);
 
+  // Desktop table view
   const tbody = document.getElementById('as-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = paged.map(e => `
-    <tr>
-      <td class="font-500 text-slate-900">${e.productName}</td>
-      <td>${e.userName}</td>
-      <td class="mono">${e.opening}</td>
-      <td class="mono">${e.received}</td>
-      <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
-      <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
-      <td class="mono text-slate-600">${e.expected}</td>
-      <td class="mono font-600 text-slate-900">${e.closing}</td>
-      <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
-      <td>${getShiftBadgeHTML(e.shift)}</td>
-      <td class="mono text-xs">${e.date}</td>
-      <td class="mono text-xs text-slate-500">${e.time}</td>
-      <td>
-        <div class="flex items-center gap-2">
-          <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry"><i class="fa-solid fa-pen text-xs"></i></button>
-          <button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 hover:text-red-300 p-1" title="Delete Entry"><i class="fa-solid fa-trash text-xs"></i></button>
+  if (tbody) {
+    tbody.innerHTML = paged.map(e => `
+      <tr>
+        <td class="font-500 text-slate-900">${e.productName}</td>
+        <td>${e.userName}</td>
+        <td class="mono">${e.opening}</td>
+        <td class="mono">${e.received}</td>
+        <td class="mono ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</td>
+        <td class="mono ${e.damaged > 0 ? 'text-red-400' : ''}">${e.damaged}</td>
+        <td class="mono text-slate-600">${e.expected}</td>
+        <td class="mono font-600 text-slate-900">${e.closing}</td>
+        <td class="mono ${e.variance !== 0 ? 'text-amber-400' : ''}">${e.variance}</td>
+        <td>${getShiftBadgeHTML(e.shift)}</td>
+        <td class="mono text-xs">${e.date}</td>
+        <td class="mono text-xs text-slate-500">${e.time}</td>
+        <td>
+          <div class="flex items-center gap-2">
+            <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand p-1" title="Edit Entry"><i class="fa-solid fa-pen text-xs"></i></button>
+            <button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 hover:text-red-300 p-1" title="Delete Entry"><i class="fa-solid fa-trash text-xs"></i></button>
+          </div>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="13" class="text-center text-slate-500 py-10">No entries match your filters</td></tr>';
+  }
+
+  // Mobile card view
+  const cardsContainer = document.getElementById('as-cards');
+  if (cardsContainer) {
+    cardsContainer.innerHTML = paged.map(e => `
+      <div class="entry-card">
+        <div class="entry-card-header">
+          <div class="entry-card-title">${e.productName}</div>
+          <span class="text-xs text-slate-500">${e.date}</span>
         </div>
-      </td>
-    </tr>`).join('') || '<tr><td colspan="13" class="text-center text-slate-500 py-10">No entries match your filters</td></tr>';
+        <div class="entry-card-grid">
+          <div class="entry-card-item">
+            <span class="entry-card-label">User</span>
+            <span class="entry-card-value">${e.userName}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Shift</span>
+            <span>${getShiftBadgeHTML(e.shift)}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Opening</span>
+            <span class="entry-card-value">${e.opening}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Closing</span>
+            <span class="entry-card-value">${e.closing}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Received</span>
+            <span class="entry-card-value">${e.received}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Stock Out</span>
+            <span class="entry-card-value ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Damaged</span>
+            <span class="entry-card-value ${e.damaged > 0 ? 'red' : ''}">${e.damaged}</span>
+          </div>
+          <div class="entry-card-item">
+            <span class="entry-card-label">Variance</span>
+            <span class="entry-card-value ${e.variance !== 0 ? 'amber' : ''}">${e.variance}</span>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3 pt-3 border-t border-slate-200">
+          <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand flex-1"><i class="fa-solid fa-pen text-xs mr-1"></i> Edit</button>
+          <button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 flex-1"><i class="fa-solid fa-trash text-xs mr-1"></i> Delete</button>
+        </div>
+      </div>`).join('') || '<div class="text-center text-slate-500 py-10">No entries match your filters</div>';
+  }
+
   const pg = document.getElementById('as-pagination');
   if (pg) pg.innerHTML = paginationHTML(asPage, totalPages, 'asPage', 'renderAdminStockTable');
 }
@@ -1188,12 +1258,15 @@ function renderAdminProducts() {
           <input id="prod-search" type="text" class="form-input" placeholder="Search products…" oninput="debouncedProductTable()" />
         </div>
       </div>
-      <div class="overflow-x-auto">
+      <!-- Desktop Table View -->
+      <div class="table-desktop overflow-x-auto hidden md:block">
         <table class="data-table">
           <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Status</th><th>Current Stock</th><th>Entries</th><th>Actions</th></tr></thead>
           <tbody id="prod-tbody"></tbody>
         </table>
       </div>
+      <!-- Mobile Card View -->
+      <div id="prod-cards" class="table-cards p-4"></div>
     </div>
   </div>`;
 }
@@ -1222,26 +1295,53 @@ function renderProductTable() {
     }
   });
 
+  // Desktop table view
   const tbody = document.getElementById('prod-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = products.map((p, i) => {
-    const data = productData[p.id] || { count: 0, latestClosing: 0 };
-    const currentStock = data.latestClosing || 0;
-    return `
-    <tr>
-      <td class="text-slate-500 mono text-xs">${i + 1}</td>
-      <td class="font-600 text-slate-900 cursor-pointer hover:text-brand transition-colors" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${p.name}</td>
-      <td><span class="chip">${p.unit}</span></td>
-      <td>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
-      <td class="mono font-600 text-slate-900 cursor-pointer hover:text-brand" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${currentStock} ${p.unit}</td>
-      <td class="mono text-slate-600">${data.count}</td>
-      <td class="flex gap-2">
-        <button onclick="showProductModal('${p.id}')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen text-xs"></i></button>
-        <button onclick="toggleProductStatus('${p.id}')" class="btn btn-ghost btn-sm text-xs">${p.active ? 'Deactivate' : 'Activate'}</button>
-        <button onclick="deleteProduct('${p.id}')" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash text-xs"></i></button>
-      </td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="7" class="text-center text-slate-500 py-10">No products found</td></tr>';
+  if (tbody) {
+    tbody.innerHTML = products.map((p, i) => {
+      const data = productData[p.id] || { count: 0, latestClosing: 0 };
+      const currentStock = data.latestClosing || 0;
+      return `
+      <tr>
+        <td class="text-slate-500 mono text-xs">${i + 1}</td>
+        <td class="font-600 text-slate-900 cursor-pointer hover:text-brand transition-colors" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${p.name}</td>
+        <td><span class="chip">${p.unit}</span></td>
+        <td>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
+        <td class="mono font-600 text-slate-900 cursor-pointer hover:text-brand" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${currentStock} ${p.unit}</td>
+        <td class="mono text-slate-600">${data.count}</td>
+        <td class="flex gap-2">
+          <button onclick="showProductModal('${p.id}')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen text-xs"></i></button>
+          <button onclick="toggleProductStatus('${p.id}')" class="btn btn-ghost btn-sm text-xs">${p.active ? 'Deactivate' : 'Activate'}</button>
+          <button onclick="deleteProduct('${p.id}')" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash text-xs"></i></button>
+        </td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" class="text-center text-slate-500 py-10">No products found</td></tr>';
+  }
+
+  // Mobile card view
+  const cardsContainer = document.getElementById('prod-cards');
+  if (cardsContainer) {
+    cardsContainer.innerHTML = products.map((p, i) => {
+      const data = productData[p.id] || { count: 0, latestClosing: 0 };
+      const currentStock = data.latestClosing || 0;
+      return `
+      <div class="product-card" onclick="showProductStockModal('${p.id}')">
+        <div class="product-card-info">
+          <div class="product-card-name">${i + 1}. ${p.name}</div>
+          <div class="product-card-meta">
+            <span><strong>Unit:</strong> ${p.unit}</span>
+            <span><strong>Stock:</strong> ${currentStock} ${p.unit}</span>
+            <span><strong>Entries:</strong> ${data.count}</span>
+            <span>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</span>
+          </div>
+        </div>
+        <div class="product-card-actions" onclick="event.stopPropagation()">
+          <button onclick="showProductModal('${p.id}')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-pen text-xs"></i></button>
+          <button onclick="deleteProduct('${p.id}')" class="btn btn-danger btn-sm"><i class="fa-solid fa-trash text-xs"></i></button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="text-center text-slate-500 py-10">No products found</div>';
+  }
 }
 
 function showProductStockModal(productId) {
