@@ -97,7 +97,7 @@
 
   /* Table */
   .data-table { width:100%; border-collapse:collapse; font-size:.855rem; table-layout:auto; min-width:100%; }
-  .data-table thead th, .data-table tbody td { min-width:100px; padding:.75rem 1rem; white-space:nowrap; }
+  .data-table thead th, .data-table tbody td { min-width:100px; padding:.75rem 1rem; }
   .data-table thead th { text-align:left; color:#64748b; font-weight:600;
     font-size:.75rem; text-transform:uppercase; letter-spacing:.05em;
     border-bottom:1px solid #f1f5f9; }

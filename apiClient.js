@@ -108,6 +108,18 @@ const API = {
     const closing = e.closing === null ? null : Number(e.closing);
     const variance = e.variance === null ? null : Number(e.variance);
 
+    const clean = (s) => {
+      if (typeof s !== 'string') return s;
+      const map = {
+        'Ã¢â€ â‚¬': '─', 'Ã¢€â‚¬': '─', 'Ã¢â‚¬â€œ': '–', 'Â·': '·',
+        'Ã¢â€ â': '─', 'Ã¢â€': '─', 'Ã¢': '─', 'Â': '', 'â‚¬': '€',
+        'â€“': '–', 'â€”': '—', 'Ã': 'à'
+      };
+      let r = s;
+      Object.entries(map).forEach(([k, v]) => r = r.split(k).join(v));
+      return r;
+    };
+
     return {
       ...e,
       opening, received, disbursed, damaged, closing, variance,
@@ -115,8 +127,8 @@ const API = {
       productId: e.product_id,
       date: e.entry_date,
       time: e.entry_time,
-      userName: e.user_name,
-      productName: e.product_name,
+      userName: clean(e.user_name),
+      productName: clean(e.product_name),
       shift: (e.shift || '').trim().toLowerCase(),
       expected: opening + received - damaged - disbursed,
       total: closing
@@ -144,7 +156,19 @@ const API = {
 
   // ── PRODUCTS ───────────────────────────────────────────────────
   getProducts: async () => {
-    return await API.request('/inventory/products', 'GET');
+    const data = await API.request('/inventory/products', 'GET');
+    const clean = (s) => {
+      if (typeof s !== 'string') return s;
+      const map = {
+        'Ã¢â€ â‚¬': '─', 'Ã¢€â‚¬': '─', 'Ã¢â‚¬â€œ': '–', 'Â·': '·',
+        'Ã¢â€ â': '─', 'Ã¢â€': '─', 'Ã¢': '─', 'Â': '', 'â‚¬': '€',
+        'â€“': '–', 'â€”': '—', 'Ã': 'à'
+      };
+      let r = s;
+      Object.entries(map).forEach(([k, v]) => r = r.split(k).join(v));
+      return r;
+    };
+    return data.map(p => ({ ...p, name: clean(p.name) }));
   },
 
   saveProduct: async (id, productData) => {

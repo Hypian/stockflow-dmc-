@@ -20,11 +20,29 @@ function getKnownUsers() {
   // Add any other users found in entries
   db_entries.forEach(e => {
     if (!e?.userId || !e?.userName) return;
+    const cleanName = cleanEncoding(e.userName);
     if (!map.has(String(e.userId))) {
-      map.set(String(e.userId), { id: e.userId, name: e.userName, role: 'user' });
+      map.set(String(e.userId), { id: e.userId, name: cleanName, role: 'user' });
     }
   });
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * FIX: Robust encoding cleanup to prevent "leaking" artifacts like Ã¢â€ â‚¬
+ */
+function cleanEncoding(str) {
+  if (typeof str !== 'string') return str;
+  const replacements = {
+    "Ã¢â€ â‚¬": "─", "Ã¢€â‚¬": "─", "Ã¢â‚¬â€œ": "–", "Â·": "·",
+    "Ã¢â€ â": "─", "Ã¢â€": "─", "Ã¢": "─", "Â": "", "â‚¬": "€",
+    "â€“": "–", "â€”": "—", "Ã": "à"
+  };
+  let result = str;
+  Object.entries(replacements).forEach(([key, val]) => {
+    result = result.split(key).join(val);
+  });
+  return result;
 }
 
 // ─â€â‚¬─â€â‚¬ STATE ─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬
@@ -3106,10 +3124,15 @@ async function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    // Refresh entries from backend to include latest values from other users/shifts.
     try {
       const freshEntries = await API.getEntries();
-      if (Array.isArray(freshEntries)) db_entries = freshEntries;
+      if (Array.isArray(freshEntries)) {
+        db_entries = freshEntries.map(e => ({
+          ...e,
+          userName: cleanEncoding(e.userName),
+          productName: cleanEncoding(e.productName)
+        }));
+      }
     } catch (e) {
       console.warn('Failed to refresh entries for opening autofill:', e?.message || e);
     }
@@ -3118,17 +3141,10 @@ async function updateUnit() {
 
     if (openingStock !== null && openingStock !== undefined) {
       openingInput.value = openingStock;
-      
-      const sourceEntry = (currentUser?.username || '').toLowerCase() === 'john'
-        ? getLatestEntryForProductByUserName(productId, 'Binama David')
-        : getLatestEntryForProduct(productId);
-
-      if (sourceEntry?.userName && sourceEntry.userName !== currentUser?.name) {
-        showToast(`Auto-filled: Opening matches ${sourceEntry.userName}'s closing.`, 'success');
-      }
+      showToast(`Stock balance found! Auto-filled opening stock with ${openingStock} ${unit || ''}.`, 'info');
     } else {
       openingInput.value = '';
-      showToast('No previous shift closing found for this product. Please enter opening stock manually.', 'warn');
+      showToast('No previous stock records found for this product. Please enter opening stock manually.', 'warn');
     }
     calcStock();
   } else if (openingInput) {
@@ -3138,47 +3154,19 @@ async function updateUnit() {
 }
 
 function getUnifiedOpeningStock(productId) {
+  // Filter for this product
   const entries = db_entries.filter(e => String(e.productId) === String(productId));
   if (!entries.length) return null;
 
-  // John-specific rule:
-  // On John's account, opening should be pulled from David's latest closing
-  // (for the same product, based on latest date/time available).
-  if ((currentUser?.username || '').toLowerCase() === 'john') {
-    const davidLatest = getLatestEntryForProductByUserName(productId, 'Binama David');
-    if (davidLatest && davidLatest.closing !== null && davidLatest.closing !== undefined) {
-      return Number(davidLatest.closing);
-    }
-  }
-
-  const now = new Date();
-  const shift = getCurrentShift(now);
-  const workingDate = getWorkingDate(now);
-
-  // Unified-stock rule:
-  // For night shift input, use the closing stock recorded in morning shift
-  // for the same working date and product (regardless of which user entered it).
-  if (shift === 'night') {
-    const morningEntry = entries
-      .filter(e => e.date === workingDate && e.shift === 'morning')
-      .sort((a, b) => {
-        const dateCmp = b.date.localeCompare(a.date);
-        return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
-      })[0];
-
-    if (morningEntry) {
-      // Calculate "Remaining" (Expected) from the morning entry
-      return Number(morningEntry.opening || 0) + Number(morningEntry.received || 0) - Number(morningEntry.damaged || 0) - Number(morningEntry.disbursed || 0);
-    }
-  }
-
-  // Fallback for other cases (or if no morning entry exists yet):
-  // use latest known "Remaining" for the product globally.
+  // Find the absolute latest entry for this product by date and time
   const latestEntry = entries.sort((a, b) => {
-    const dateCmp = b.date.localeCompare(a.date);
-    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
+    const aDateTime = new Date(`${a.date}T${a.time || '00:00:00'}`);
+    const bDateTime = new Date(`${b.date}T${b.time || '00:00:00'}`);
+    return bDateTime - aDateTime;
   })[0];
-  return latestEntry ? (Number(latestEntry.opening || 0) + Number(latestEntry.received || 0) - Number(latestEntry.damaged || 0) - Number(latestEntry.disbursed || 0)) : null;
+
+  // Return the closing stock of the last entry as the opening for the new one
+  return latestEntry ? Number(latestEntry.closing || 0) : null;
 }
 
 function getLatestEntryForProductByUserName(productId, userName) {
