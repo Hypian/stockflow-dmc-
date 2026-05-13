@@ -96,11 +96,11 @@
   .badge-purple{ background:rgba(168,85,247,.1); color:#7e22ce; border:1px solid rgba(168,85,247,.15); }
 
   /* Table */
-  .data-table { width:100%; border-collapse:collapse; font-size:.855rem; table-layout:auto; }
-  .data-table thead th, .data-table tbody td { min-width:80px; word-break:break-word; overflow-wrap:break-word; padding:.75rem 1rem; }
+  .data-table { width:100%; border-collapse:collapse; font-size:.855rem; table-layout:auto; min-width:100%; }
+  .data-table thead th, .data-table tbody td { min-width:100px; padding:.75rem 1rem; white-space:nowrap; }
   .data-table thead th { text-align:left; color:#64748b; font-weight:600;
     font-size:.75rem; text-transform:uppercase; letter-spacing:.05em;
-    border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+    border-bottom:1px solid #f1f5f9; }
   .data-table tbody td { border-bottom:1px solid #f8fafc;
     color:#334155; vertical-align:middle; }
   .data-table tbody tr { transition:background .15s; }
@@ -183,10 +183,9 @@
     .section-sub { font-size:.75rem; }
     .btn { width:100%; justify-content:center; }
     .btn + .btn { margin-top:.5rem; }
-    .data-table { font-size:.82rem; table-layout:fixed; }
-    .data-table thead th, .data-table tbody td { min-width:70px; padding:.5rem .75rem; font-size:.78rem; }
-    .data-table thead th { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .overflow-x-auto { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .data-table { font-size:.82rem; table-layout:auto; min-width:100%; }
+    .data-table thead th, .data-table tbody td { min-width:90px; padding:.5rem .75rem; font-size:.78rem; white-space:nowrap; }
+    .overflow-x-auto { overflow-x:auto !important; -webkit-overflow-scrolling:touch; display:block !important; }
   }
 
   /* Skeleton loader */
