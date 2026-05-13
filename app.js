@@ -1111,12 +1111,16 @@ function renderAdminStock() {
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Table Section -->
     <div class="glass rounded-xl overflow-hidden">
-      <div class="flex items-center justify-between p-4 border-b border-white/5">
-        <div class="section-title">All Stock Entries</div>
-        <div id="as-count" class="text-xs text-slate-500"></div>
+      <div class="flex items-center justify-between p-4 border-b border-white/5 bg-slate-50/50">
+        <div>
+          <div class="section-title">All Stock Entries</div>
+          <div class="section-sub hidden md:block">Recent system-wide inventory records</div>
+        </div>
+        <div id="as-count" class="text-xs font-600 px-2 py-1 bg-brand/10 text-brand rounded-full"></div>
       </div>
+
       <!-- Desktop Table View -->
       <div class="table-desktop overflow-x-auto hidden md:block">
         <table class="data-table">
@@ -1128,9 +1132,11 @@ function renderAdminStock() {
           <tbody id="as-tbody"></tbody>
         </table>
       </div>
-      <!-- Mobile Card View -->
-      <div id="as-cards" class="entry-cards p-4"></div>
-      <div id="as-pagination" class="flex items-center justify-between p-4 border-t border-white/5"></div>
+
+      <!-- Mobile List View (Simplified) -->
+      <div id="as-cards" class="md:hidden divide-y divide-slate-100"></div>
+
+      <div id="as-pagination" class="flex items-center justify-between p-4 border-t border-white/5 bg-slate-50/50"></div>
     </div>
   </div>`;
 }
@@ -1185,54 +1191,29 @@ function renderAdminStockTable() {
       </tr>`).join('') || '<tr><td colspan="13" class="text-center text-slate-500 py-10">No entries match your filters</td></tr>';
   }
 
-  // Mobile card view
+  // Mobile list view
   const cardsContainer = document.getElementById('as-cards');
   if (cardsContainer) {
     cardsContainer.innerHTML = paged.map(e => `
-      <div class="entry-card">
-        <div class="entry-card-header">
-          <div class="entry-card-title">${e.productName}</div>
-          <span class="text-xs text-slate-500">${e.date}</span>
-        </div>
-        <div class="entry-card-grid">
-          <div class="entry-card-item">
-            <span class="entry-card-label">User</span>
-            <span class="entry-card-value">${e.userName}</span>
+      <div class="p-4 cursor-pointer hover:bg-slate-50 transition-colors active:bg-slate-100" onclick="viewEntryDetails('${e.id}')">
+        <div class="flex justify-between items-center">
+          <div class="flex-1 min-w-0 pr-4">
+            <div class="font-700 text-slate-900 truncate mb-0.5">${e.productName}</div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-500 font-500">
+              <span class="truncate max-w-[100px]">${e.userName}</span>
+              <span class="text-slate-300">•</span>
+              <span>${e.date}</span>
+            </div>
           </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Shift</span>
-            <span>${getShiftBadgeHTML(e.shift)}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Opening</span>
-            <span class="entry-card-value">${e.opening}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Closing</span>
-            <span class="entry-card-value">${e.closing}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Received</span>
-            <span class="entry-card-value">${e.received}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Stock Out</span>
-            <span class="entry-card-value ${e.disbursed > 0 ? 'text-brand' : ''}">${e.disbursed}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Damaged</span>
-            <span class="entry-card-value ${e.damaged > 0 ? 'red' : ''}">${e.damaged}</span>
-          </div>
-          <div class="entry-card-item">
-            <span class="entry-card-label">Variance</span>
-            <span class="entry-card-value ${e.variance !== 0 ? 'amber' : ''}">${e.variance}</span>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="mono font-700 text-slate-900 text-sm">${e.closing}</div>
+              <div class="text-[9px] text-slate-400 uppercase tracking-tighter font-600">Stock</div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
           </div>
         </div>
-        <div class="flex gap-2 mt-3 pt-3 border-t border-slate-200">
-          <button onclick="editEntry('${e.id}')" class="btn btn-ghost btn-sm text-brand flex-1"><i class="fa-solid fa-pen text-xs mr-1"></i> Edit</button>
-          <button onclick="deleteEntry('${e.id}')" class="btn btn-ghost btn-sm text-red-400 flex-1"><i class="fa-solid fa-trash text-xs mr-1"></i> Delete</button>
-        </div>
-      </div>`).join('') || '<div class="text-center text-slate-500 py-10">No entries match your filters</div>';
+      </div>`).join('') || '<div class="text-center text-slate-500 py-12 text-sm italic">No entries match your filters</div>';
   }
 
   const pg = document.getElementById('as-pagination');
@@ -1243,7 +1224,6 @@ function deleteEntry(id) {
   showConfirm('Delete Entry', 'This will permanently remove this stock entry.', async () => {
     try {
       await API.deleteEntry(id);
-      // Refresh entries from backend to get latest data
       db_entries = await API.getEntries();
       renderAdminStockTable();
       showToast('Entry deleted', 'success');
@@ -1251,6 +1231,76 @@ function deleteEntry(id) {
       showToast(error.message, 'error');
     }
   });
+}
+
+function viewEntryDetails(id) {
+  const e = db_entries.find(x => String(x.id) === String(id));
+  if (!e) return;
+  
+  document.getElementById('modal-content').innerHTML = `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-700 text-slate-900">Entry Overview</h3>
+        <button onclick="closeModal()" class="btn btn-ghost btn-sm p-1.5 rounded-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="glass rounded-xl p-5 bg-slate-50/50 border-slate-200">
+          <div class="font-800 text-slate-900 text-xl mb-1 tracking-tight">${e.productName}</div>
+          <div class="text-xs text-slate-500 mb-6 font-500">${e.date} • ${e.time}</div>
+          
+          <div class="grid grid-cols-2 gap-y-5 gap-x-4">
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Staff Member</div>
+              <div class="text-sm font-600 text-slate-800">${e.userName}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Shift</div>
+              <div>${getShiftBadgeHTML(e.shift)}</div>
+            </div>
+            <div class="divider col-span-2 opacity-50"></div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Opening Stock</div>
+              <div class="mono font-700 text-slate-700">${e.opening}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Received</div>
+              <div class="mono font-700 text-green-600">+${e.received}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Stock Out</div>
+              <div class="mono font-700 text-brand">-${e.disbursed}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Damaged</div>
+              <div class="mono font-700 text-red-500">-${e.damaged}</div>
+            </div>
+            <div class="divider col-span-2 opacity-50"></div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Final Closing</div>
+              <div class="mono font-800 text-slate-900 text-lg">${e.closing}</div>
+            </div>
+            <div>
+              <div class="text-[10px] text-slate-400 uppercase tracking-widest font-700 mb-1">Variance</div>
+              <div class="mono font-800 text-lg ${e.variance !== 0 ? 'text-amber-500' : 'text-green-500'}">
+                ${e.variance > 0 ? '+' : ''}${e.variance}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2 mt-6">
+        <button onclick="closeModal(); editEntry('${e.id}')" class="btn btn-primary justify-center">
+          <i class="fa-solid fa-pen-to-square mr-2"></i> Edit Record
+        </button>
+        <button onclick="closeModal(); deleteEntry('${e.id}')" class="btn btn-ghost text-red-500 hover:bg-red-50 justify-center">
+          <i class="fa-solid fa-trash-can mr-2"></i> Delete Entry
+        </button>
+      </div>
+    </div>`;
+    
+  openModal();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2743,10 +2793,24 @@ function getAnalyticsReportDefinitions() {
 //  USER DASHBOARD (Stock Entry Form)
 // ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ ═ 
 function renderUserDashboard() {
-  const products = db_products.filter(p => p.active);
-  const shift = getCurrentShift();
   const entries = db_entries;
   const today = entries.filter(e => String(e.userId) === String(currentUser.id) && e.date === getWorkingDate());
+  
+  const products = db_products.filter(p => {
+    if (!p.active) return false;
+    // Get all product IDs this user has already entered for today
+    const enteredToday = today.map(e => String(e.productId));
+    
+    // If we are editing, allow the product being edited to stay in the list
+    if (editingEntryId) {
+      const currentEntry = entries.find(e => String(e.id) === String(editingEntryId));
+      if (currentEntry && String(currentEntry.productId) === String(p.id)) return true;
+    }
+    
+    return !enteredToday.includes(String(p.id));
+  });
+  
+  const shift = getCurrentShift();
 
 
   return `
