@@ -36,7 +36,17 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!', details: err.message });
 });
 
+const { pool } = require('./config/db');
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Auto-migrate to ensure unit_price exists
+  try {
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS unit_price NUMERIC DEFAULT 0');
+    console.log('Database migration verified: unit_price column check complete.');
+  } catch (err) {
+    console.error('Migration failed:', err.message);
+  }
 });

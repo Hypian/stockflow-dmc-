@@ -23,12 +23,14 @@ const getProducts = async (req, res) => {
 // @desc    Create a product
 // @route   POST /api/inventory/products
 const createProduct = async (req, res) => {
-  let { name, unit, active } = req.body;
+  let { name, unit, active, unitPrice } = req.body;
   try {
     name = normalizeProductName(name);
     if (!name) {
       return res.status(400).json({ error: 'Product name is required' });
     }
+    
+    unitPrice = Number(unitPrice) || 0;
 
     // Prevent duplicate product names by merging with existing product
     const duplicate = await query('SELECT * FROM products WHERE lower(name) = lower($1)', [name]);
@@ -38,8 +40,8 @@ const createProduct = async (req, res) => {
     }
 
     const result = await query(
-      'INSERT INTO products (name, unit, active) VALUES ($1, $2, $3) RETURNING *',
-      [name, unit, active !== undefined ? active : true]
+      'INSERT INTO products (name, unit, unit_price, active) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, unit, unitPrice, active !== undefined ? active : true]
     );
     const product = result.rows[0];
 
@@ -64,10 +66,12 @@ const createProduct = async (req, res) => {
 // @access  Private/Admin
 const updateProduct = async (req, res) => {
   const { id } = req.params;
-  let { name, unit, active } = req.body;
+  let { name, unit, active, unitPrice } = req.body;
 
   try {
     name = normalizeProductName(name);
+    unitPrice = Number(unitPrice) || 0;
+    
     const existing = await query('SELECT * FROM products WHERE id = $1', [id]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
 
@@ -80,8 +84,8 @@ const updateProduct = async (req, res) => {
     }
 
     const result = await query(
-      'UPDATE products SET name = $1, unit = $2, active = $3 WHERE id = $4 RETURNING *',
-      [name, unit, active, id]
+      'UPDATE products SET name = $1, unit = $2, unit_price = $3, active = $4 WHERE id = $5 RETURNING *',
+      [name, unit, unitPrice, active, id]
     );
     const product = result.rows[0];
 

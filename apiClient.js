@@ -168,7 +168,11 @@ const API = {
       Object.entries(map).forEach(([k, v]) => r = r.split(k).join(v));
       return r;
     };
-    return data.map(p => ({ ...p, name: clean(p.name) }));
+    return data.map(p => ({ 
+      ...p, 
+      name: clean(p.name),
+      unitPrice: Number(p.unit_price) || 0 
+    }));
   },
 
   saveProduct: async (id, productData) => {

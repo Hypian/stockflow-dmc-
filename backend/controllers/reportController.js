@@ -223,10 +223,65 @@ const getLossReport = async (req, res) => {
     }
 };
 
+// @desc    Get Financial Value Report
+// @route   GET /api/reports/financial
+// @access  Private/Admin
+const getFinancialReport = async (req, res) => {
+    const { startDate, endDate } = req.query;
+    try {
+        const params = [];
+        let dateFilter = '';
+        if (startDate) {
+            params.push(startDate);
+            dateFilter += ` AND e.entry_date >= $${params.length}`;
+        }
+        if (endDate) {
+            params.push(endDate);
+            dateFilter += ` AND e.entry_date <= $${params.length}`;
+        }
+
+        const sql = `
+            WITH LatestEntries AS (
+                SELECT DISTINCT ON (product_id) *
+                FROM entries e
+                WHERE 1=1 ${dateFilter}
+                ORDER BY product_id, entry_date DESC, entry_time DESC, created_at DESC
+            )
+            SELECT p.name as product_name, p.unit_price,
+                   COALESCE(le.closing, 0)::FLOAT as current_stock,
+                   (COALESCE(le.closing, 0) * p.unit_price) as current_value,
+                   (SELECT SUM(disbursed) FROM entries e2 WHERE e2.product_id = p.id ${dateFilter}) as total_out,
+                   (SELECT SUM(received) FROM entries e3 WHERE e3.product_id = p.id ${dateFilter}) as total_in
+            FROM products p
+            LEFT JOIN LatestEntries le ON p.id = le.product_id
+            WHERE p.active = true
+            ORDER BY p.name ASC
+        `;
+        const result = await query(sql, params);
+        
+        const data = result.rows.map(r => ({
+          ...r,
+          current_stock: Number(r.current_stock || 0),
+          unit_price: Number(r.unit_price || 0),
+          current_value: Number(r.current_value || 0),
+          total_out: Number(r.total_out || 0),
+          total_in: Number(r.total_in || 0),
+          stock_out_value: Number(r.total_out || 0) * Number(r.unit_price || 0),
+          received_value: Number(r.total_in || 0) * Number(r.unit_price || 0)
+        }));
+
+        res.json({ data });
+    } catch (error) {
+        console.error('getFinancialReport Error:', error);
+        res.status(500).json({ error: 'Failed to generate financial report' });
+    }
+};
+
 module.exports = {
   getDamageReport,
   getStockComparison,
   getInventorySummary,
   getMovementTrends,
-  getLossReport
+  getLossReport,
+  getFinancialReport
 };

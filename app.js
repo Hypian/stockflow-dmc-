@@ -1329,7 +1329,7 @@ function renderAdminProducts() {
       <!-- Desktop Table View -->
       <div class="table-desktop overflow-x-auto hidden md:block">
         <table class="data-table">
-          <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Status</th><th>Current Stock</th><th>Entries</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Unit Price</th><th>Status</th><th>Current Stock</th><th>Entries</th><th>Actions</th></tr></thead>
           <tbody id="prod-tbody"></tbody>
         </table>
       </div>
@@ -1374,6 +1374,7 @@ function renderProductTable() {
         <td class="text-slate-500 mono text-xs">${i + 1}</td>
         <td class="font-600 text-slate-900 cursor-pointer hover:text-brand transition-colors" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${p.name}</td>
         <td><span class="chip">${p.unit}</span></td>
+        <td class="mono font-600 text-slate-700">${Number(p.unitPrice).toLocaleString()} RWF</td>
         <td>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
         <td class="mono font-600 text-slate-900 cursor-pointer hover:text-brand" onclick="showProductStockModal('${p.id}')" title="Click to view stock details">${currentStock} ${p.unit}</td>
         <td class="mono text-slate-600">${data.count}</td>
@@ -1398,6 +1399,7 @@ function renderProductTable() {
           <div class="product-card-name">${i + 1}. ${p.name}</div>
           <div class="product-card-meta">
             <span><strong>Unit:</strong> ${p.unit}</span>
+            <span><strong>Unit Price:</strong> ${Number(p.unitPrice).toLocaleString()} RWF</span>
             <span><strong>Stock:</strong> ${currentStock} ${p.unit}</span>
             <span><strong>Entries:</strong> ${data.count}</span>
             <span>${p.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</span>
@@ -1446,6 +1448,11 @@ function showProductStockModal(productId) {
           <div class="label">Current Stock</div>
           <div class="value">${currentStock}</div>
           <div class="text-xs text-slate-500 mt-1">${product.unit}</div>
+        </div>
+        <div class="modal-card">
+          <div class="label">Unit Price</div>
+          <div class="value">${Number(product.unitPrice).toLocaleString()}</div>
+          <div class="text-xs text-slate-500 mt-1">RWF</div>
         </div>
         <div class="modal-card">
           <div class="label">Stock Level</div>
@@ -1506,15 +1513,21 @@ function showProductModal(id = null) {
         <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Product Name *</label>
         <input id="pm-name" type="text" class="form-input" value="${p?.name || ''}" placeholder="e.g. Mineral Water 500ml" />
       </div>
-      <div>
-        <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
-        <select id="pm-unit" class="form-input">
-          ${units.map(u => `<option value="${u}" ${p?.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
-        </select>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit of Measure *</label>
+          <select id="pm-unit" class="form-input">
+            ${units.map(u => `<option value="${u}" ${p?.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-600 text-slate-600 mb-1.5 uppercase tracking-wide">Unit Price (RWF)</label>
+          <input id="pm-unit-price" type="number" class="form-input" value="${p?.unitPrice || 0}" placeholder="0" min="0" />
+        </div>
       </div>
       <div class="flex items-center gap-3 p-3 glass rounded-xl">
-        <input id="pm-active" type="checkbox" class="w-4 h-4 accent-amber-500" ${p?.active !== false ? 'checked' : ''} />
-        <label class="text-sm text-slate-500">Active (visible to staff)</label>
+        <input id="pm-active" type="checkbox" class="w-4 h-4 accent-brand" ${p?.active !== false ? 'checked' : ''} />
+        <label class="text-sm text-slate-500 font-500">Active (visible to staff)</label>
       </div>
     </div>
     <div class="modal-footer">
@@ -1536,6 +1549,7 @@ async function saveProduct(id) {
   const normalizedName = rawName.replace(/\s+/g, ' ').trim();
   const name = normalizedName.charAt(0).toUpperCase() + normalizedName.slice(1).toLowerCase();
   const unit = document.getElementById('pm-unit').value;
+  const unitPrice = document.getElementById('pm-unit-price').value || 0;
   const active = document.getElementById('pm-active').checked;
   const existingProduct = db_products.find(p => p.name.toLowerCase() === name.toLowerCase());
   if (!id && existingProduct) {
@@ -1548,7 +1562,7 @@ async function saveProduct(id) {
   btn.disabled = true;
 
   try {
-    const data = { name, unit, active };
+    const data = { name, unit, active, unitPrice };
     const savedProduct = await API.saveProduct(id, data);
 
     if (id) {
@@ -2139,8 +2153,41 @@ function renderAdminAnalytics() {
     };
   }).sort((a, b) => b.count - a.count).slice(0, 5);
 
+  // Financial calculations
+  const prodFinancials = products.map(p => {
+    const pEntries = entriesByProduct[p.id] || [];
+    const latestEntry = pEntries.length > 0 ? [...pEntries].sort((a,b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0] : null;
+    const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
+    const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
+    const received = pEntries.reduce((s, e) => s + Number(e.received || 0), 0);
+    return {
+      currentValue: currentStock * Number(p.unitPrice || 0),
+      stockOutValue: stockOut * Number(p.unitPrice || 0),
+      receivedValue: received * Number(p.unitPrice || 0)
+    };
+  });
+  const totalCurrentValue = prodFinancials.reduce((s,f) => s + f.currentValue, 0);
+  const totalStockOutValue = prodFinancials.reduce((s,f) => s + f.stockOutValue, 0);
+  const totalReceivedValue = prodFinancials.reduce((s,f) => s + f.receivedValue, 0);
+
   return `
   <div class="stagger space-y-6">
+    <!-- Financial stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="glass rounded-xl p-5 border-l-4 border-green-500">
+        <div class="text-xs text-slate-500 uppercase tracking-widest font-700 mb-1">Current Stock Value</div>
+        <div class="text-2xl font-800 text-slate-900">${totalCurrentValue.toLocaleString()} RWF</div>
+      </div>
+      <div class="glass rounded-xl p-5 border-l-4 border-brand">
+        <div class="text-xs text-slate-500 uppercase tracking-widest font-700 mb-1">Total Stock Out Value</div>
+        <div class="text-2xl font-800 text-brand">${totalStockOutValue.toLocaleString()} RWF</div>
+      </div>
+      <div class="glass rounded-xl p-5 border-l-4 border-blue-500">
+        <div class="text-xs text-slate-500 uppercase tracking-widest font-700 mb-1">Total Received Value</div>
+        <div class="text-2xl font-800 text-slate-900">${totalReceivedValue.toLocaleString()} RWF</div>
+      </div>
+    </div>
+
     <!-- Top stats -->
     <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       ${statCard('fa-boxes-stacked', 'Total Stock Recorded', entries.reduce((s, e) => s + Number(e.total || 0), 0), 'badge-blue', 'All time', 'showDrillDownModal(\'Stock by Product\', db_entries, \'stock\')')}
@@ -2347,6 +2394,21 @@ function renderAdminAnalytics() {
             <i class="fa-solid fa-download"></i> Download Report
           </button>
         </div>
+        <!-- Financial Report -->
+        <div class="glass bg-white/5 rounded-xl p-5 border border-white/5 hover:border-brand/30 transition-all group">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500">
+              <i class="fa-solid fa-money-bill-trend-up text-xl"></i>
+            </div>
+            <div>
+              <div class="text-sm font-700 text-slate-900">Financial Value Report</div>
+              <div class="text-[10px] text-slate-500 uppercase tracking-wider">Unit price & stock values</div>
+            </div>
+          </div>
+          <button onclick="openReportModal('financial')" class="btn btn-secondary w-full justify-center group-hover:bg-brand group-hover:text-gray-900 group-hover:border-brand transition-all">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -2358,10 +2420,11 @@ function openReportModal(type) {
     'comparison': 'Stock In vs Out Export',
     'summary': 'Inventory Summary Export',
     'trends': 'Movement Trends Export',
-    'loss': 'Loss & Adjustment Export'
+    'loss': 'Loss & Adjustment Export',
+    'financial': 'Financial Stock Value Export'
   };
 
-  const hasDateRange = ['damages', 'comparison', 'trends', 'loss'].includes(type);
+  const hasDateRange = ['damages', 'comparison', 'trends', 'loss', 'financial'].includes(type);
   const hasProductFilter = ['damages'].includes(type);
 
   document.getElementById('modal-content').innerHTML = `
@@ -2662,6 +2725,37 @@ function getAnalyticsReportDefinitions() {
             { label: 'Products Affected', value: uniqProducts },
             { label: 'Users Involved', value: uniqUsers },
             ...(summary?.period ? [{ label: 'Period', value: summary.period }] : [])
+          ]
+        };
+      }
+    },
+    financial: {
+      ...base,
+      title: 'Financial Stock Value',
+      columns: [
+        { key: 'product_name', label: 'Product' },
+        { key: 'unit_price', label: 'Unit Price (RWF)', align: 'right' },
+        { key: 'current_stock', label: 'Current Stock', align: 'right' },
+        { key: 'current_value', label: 'Current Value (RWF)', align: 'right' },
+        { key: 'stock_out_value', label: 'Stock Out Value (RWF)', align: 'right' },
+        { key: 'received_value', label: 'Received Value (RWF)', align: 'right' }
+      ],
+      value: (row, key) => ['unit_price', 'current_stock', 'current_value', 'stock_out_value', 'received_value'].includes(key) ? num(row[key]) : row?.[key],
+      formatValue: (v, key) => {
+        if (['unit_price', 'current_value', 'stock_out_value', 'received_value'].includes(key)) {
+          return Number(v).toLocaleString();
+        }
+        return v === null || v === undefined || v === '' ? '— ' : String(v);
+      },
+      computeSummary: (data) => {
+        const totalCurrent = data.reduce((s, r) => s + num(r.current_value), 0);
+        const totalOut = data.reduce((s, r) => s + num(r.stock_out_value), 0);
+        const totalIn = data.reduce((s, r) => s + num(r.received_value), 0);
+        return {
+          cards: [
+            { label: 'Total Current Value', value: totalCurrent.toLocaleString() + ' RWF' },
+            { label: 'Total Stock Out Value', value: totalOut.toLocaleString() + ' RWF' },
+            { label: 'Total Received Value', value: totalIn.toLocaleString() + ' RWF' }
           ]
         };
       }

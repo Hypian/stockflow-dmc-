@@ -5,7 +5,8 @@ const {
   getStockComparison, 
   getInventorySummary, 
   getMovementTrends, 
-  getLossReport 
+  getLossReport,
+  getFinancialReport
 } = require('../controllers/reportController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 
@@ -18,5 +19,6 @@ router.get('/comparison', getStockComparison);
 router.get('/summary', getInventorySummary);
 router.get('/trends', getMovementTrends);
 router.get('/loss', getLossReport);
+router.get('/financial', getFinancialReport);
 
 module.exports = router;
