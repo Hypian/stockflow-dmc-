@@ -2153,19 +2153,21 @@ function renderAdminAnalytics() {
     };
   }).sort((a, b) => b.count - a.count).slice(0, 5);
 
-  // Financial calculations
-  const prodFinancials = products.map(p => {
-    const pEntries = entriesByProduct[p.id] || [];
-    const latestEntry = pEntries.length > 0 ? [...pEntries].sort((a,b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0] : null;
-    const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
-    const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
-    const received = pEntries.reduce((s, e) => s + Number(e.received || 0), 0);
-    return {
-      currentValue: currentStock * Number(p.unitPrice || 0),
-      stockOutValue: stockOut * Number(p.unitPrice || 0),
-      receivedValue: received * Number(p.unitPrice || 0)
-    };
-  });
+  // Financial calculations – only products that have entries (are in stock flow)
+  const prodFinancials = products
+    .filter(p => (entriesByProduct[p.id] || []).length > 0)
+    .map(p => {
+      const pEntries = entriesByProduct[p.id] || [];
+      const latestEntry = [...pEntries].sort((a,b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0];
+      const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
+      const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
+      const received = pEntries.reduce((s, e) => s + Number(e.received || 0), 0);
+      return {
+        currentValue: currentStock * Number(p.unitPrice || 0),
+        stockOutValue: stockOut * Number(p.unitPrice || 0),
+        receivedValue: received * Number(p.unitPrice || 0)
+      };
+    });
   const totalCurrentValue = prodFinancials.reduce((s,f) => s + f.currentValue, 0);
   const totalStockOutValue = prodFinancials.reduce((s,f) => s + f.stockOutValue, 0);
   const totalReceivedValue = prodFinancials.reduce((s,f) => s + f.receivedValue, 0);

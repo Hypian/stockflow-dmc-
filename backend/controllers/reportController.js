@@ -230,50 +230,75 @@ const getFinancialReport = async (req, res) => {
     const { startDate, endDate } = req.query;
     try {
         const params = [];
-        let dateFilter = '';
+        let cteFilter = '';
+        let aggFilter = '';
         if (startDate) {
             params.push(startDate);
-            dateFilter += ` AND e.entry_date >= $${params.length}`;
+            cteFilter += ` AND entry_date >= $${params.length}`;
+            aggFilter += ` AND entry_date >= $${params.length}`;
         }
         if (endDate) {
             params.push(endDate);
-            dateFilter += ` AND e.entry_date <= $${params.length}`;
+            cteFilter += ` AND entry_date <= $${params.length}`;
+            aggFilter += ` AND entry_date <= $${params.length}`;
         }
 
         const sql = `
-            WITH LatestEntries AS (
-                SELECT DISTINCT ON (product_id) *
-                FROM entries e
-                WHERE 1=1 ${dateFilter}
+            WITH latest AS (
+                SELECT DISTINCT ON (product_id)
+                    product_id, closing
+                FROM entries
+                WHERE 1=1 ${cteFilter}
                 ORDER BY product_id, entry_date DESC, entry_time DESC, created_at DESC
+            ),
+            agg AS (
+                SELECT 
+                    product_id,
+                    COALESCE(SUM(disbursed), 0) as total_out,
+                    COALESCE(SUM(received), 0) as total_in
+                FROM entries
+                WHERE 1=1 ${aggFilter}
+                GROUP BY product_id
             )
-            SELECT p.name as product_name, p.unit_price,
-                   COALESCE(le.closing, 0)::FLOAT as current_stock,
-                   (COALESCE(le.closing, 0) * p.unit_price) as current_value,
-                   (SELECT SUM(disbursed) FROM entries e2 WHERE e2.product_id = p.id ${dateFilter}) as total_out,
-                   (SELECT SUM(received) FROM entries e3 WHERE e3.product_id = p.id ${dateFilter}) as total_in
+            SELECT 
+                p.name as product_name,
+                COALESCE(p.unit_price, 0) as unit_price,
+                COALESCE(l.closing, 0) as current_stock,
+                COALESCE(l.closing, 0) * COALESCE(p.unit_price, 0) as current_value,
+                COALESCE(a.total_out, 0) as total_out,
+                COALESCE(a.total_in, 0) as total_in,
+                COALESCE(a.total_out, 0) * COALESCE(p.unit_price, 0) as stock_out_value,
+                COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value
             FROM products p
-            LEFT JOIN LatestEntries le ON p.id = le.product_id
+            LEFT JOIN latest l ON l.product_id = p.id
+            LEFT JOIN agg a ON a.product_id = p.id
             WHERE p.active = true
             ORDER BY p.name ASC
         `;
+
         const result = await query(sql, params);
-        
+
         const data = result.rows.map(r => ({
-          ...r,
-          current_stock: Number(r.current_stock || 0),
+          product_name: r.product_name,
           unit_price: Number(r.unit_price || 0),
+          current_stock: Number(r.current_stock || 0),
           current_value: Number(r.current_value || 0),
           total_out: Number(r.total_out || 0),
           total_in: Number(r.total_in || 0),
-          stock_out_value: Number(r.total_out || 0) * Number(r.unit_price || 0),
-          received_value: Number(r.total_in || 0) * Number(r.unit_price || 0)
+          stock_out_value: Number(r.stock_out_value || 0),
+          received_value: Number(r.received_value || 0)
         }));
 
-        res.json({ data });
+        const summary = {
+          totalCurrentValue: data.reduce((s, r) => s + r.current_value, 0),
+          totalStockOutValue: data.reduce((s, r) => s + r.stock_out_value, 0),
+          totalReceivedValue: data.reduce((s, r) => s + r.received_value, 0)
+        };
+
+        res.json({ data, summary });
     } catch (error) {
         console.error('getFinancialReport Error:', error);
-        res.status(500).json({ error: 'Failed to generate financial report' });
+        res.status(500).json({ error: 'Failed to generate financial report', details: error.message });
     }
 };
 
