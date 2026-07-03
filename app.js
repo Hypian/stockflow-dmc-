@@ -2661,14 +2661,15 @@ async function downloadPDF(type, data, summary, start, end) {
   // if the source element is display:none. So we render into a temporary offscreen container.
   const container = document.createElement('div');
   container.style.position = 'absolute';
-  container.style.left = '0';
+  container.style.left = '-10000px';
   container.style.top = '0';
   container.style.width = orientation === 'portrait' ? '794px' : '1123px'; // approx A4 px at 96dpi
   container.style.background = '#ffffff';
-  container.style.visibility = 'hidden';
   container.style.opacity = '0';
   container.style.pointerEvents = 'none';
   container.style.zIndex = '-1';
+  container.style.transform = 'scale(0.98)';
+  container.style.transformOrigin = 'top left';
   container.innerHTML = html;
   document.body.appendChild(container);
   
