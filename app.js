@@ -2556,8 +2556,42 @@ function downloadCSV(type, data, start, end) {
   const columns = (def?.columns || Object.keys(data[0]).map(k => ({ key: k, label: k })))
     .filter(Boolean);
 
+  const columnIndexToExcel = (index) => {
+    let col = '';
+    while (index >= 0) {
+      col = String.fromCharCode(65 + (index % 26)) + col;
+      index = Math.floor(index / 26) - 1;
+    }
+    return col;
+  };
+
+  const isNumericColumn = (column) => {
+    return data.every(row => {
+      const value = def.value(row, column.key);
+      return value === null || value === undefined || value === '' || typeof value === 'number' || !Number.isNaN(Number(value));
+    });
+  };
+
+  const numericColumns = columns.map(isNumericColumn);
   const headers = columns.map(c => csvEscape(c.label));
   const rows = data.map(row => columns.map(c => csvEscape(def.value(row, c.key))).join(','));
+
+  if (data.length > 0) {
+    const totals = columns.map((column, index) => {
+      if (index === 0) {
+        return 'Totals';
+      }
+      if (!numericColumns[index]) {
+        return '';
+      }
+      const columnLetter = columnIndexToExcel(index);
+      const startRow = 2;
+      const endRow = data.length + 1;
+      return `=SUM(${columnLetter}${startRow}:${columnLetter}${endRow})`;
+    });
+    rows.push(totals.map(value => csvEscape(value)).join(','));
+  }
+
   const csv = [headers.join(','), ...rows].join('\n');
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -2660,12 +2694,12 @@ async function downloadPDF(type, data, summary, start, end) {
   // NOTE: #print-area is hidden by default (print-only). html2pdf/html2canvas will render blanks
   // if the source element is display:none. So we render into a temporary offscreen container.
   const container = document.createElement('div');
-  container.style.position = 'absolute';
+  container.style.position = 'fixed';
   container.style.left = '-10000px';
   container.style.top = '0';
   container.style.width = orientation === 'portrait' ? '794px' : '1123px'; // approx A4 px at 96dpi
   container.style.background = '#ffffff';
-  container.style.opacity = '0';
+  container.style.opacity = '1';
   container.style.pointerEvents = 'none';
   container.style.zIndex = '-1';
   container.style.transform = 'scale(0.98)';
@@ -2681,7 +2715,7 @@ async function downloadPDF(type, data, summary, start, end) {
       .replace(/\s+/g, '_')
       .replace(/[^\w\-\.]/g, ''),
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+    html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, allowTaint: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation }
   };
 
