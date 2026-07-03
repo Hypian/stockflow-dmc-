@@ -2153,21 +2153,22 @@ function renderAdminAnalytics() {
     };
   }).sort((a, b) => b.count - a.count).slice(0, 5);
 
-  // Financial calculations – only products that have entries (are in stock flow)
-  const prodFinancials = products
-    .filter(p => (entriesByProduct[p.id] || []).length > 0)
-    .map(p => {
-      const pEntries = entriesByProduct[p.id] || [];
-      const latestEntry = [...pEntries].sort((a,b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0];
-      const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
-      const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
-      const received = pEntries.reduce((s, e) => s + Number(e.received || 0), 0);
-      return {
-        currentValue: currentStock * Number(p.unitPrice || 0),
-        stockOutValue: stockOut * Number(p.unitPrice || 0),
-        receivedValue: received * Number(p.unitPrice || 0)
-      };
-    });
+  // Financial calculations should use every active product and its latest stock position.
+  const activeProducts = products.filter(p => p.active);
+  const prodFinancials = activeProducts.map(p => {
+    const pEntries = entriesByProduct[p.id] || [];
+    const latestEntry = pEntries.length > 0
+      ? [...pEntries].sort((a, b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0]
+      : null;
+    const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
+    const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
+    const received = pEntries.reduce((s, e) => s + Number(e.received || 0), 0);
+    return {
+      currentValue: currentStock * Number(p.unitPrice || 0),
+      stockOutValue: stockOut * Number(p.unitPrice || 0),
+      receivedValue: received * Number(p.unitPrice || 0)
+    };
+  });
   const totalCurrentValue = prodFinancials.reduce((s,f) => s + f.currentValue, 0);
   const totalStockOutValue = prodFinancials.reduce((s,f) => s + f.stockOutValue, 0);
   const totalReceivedValue = prodFinancials.reduce((s,f) => s + f.receivedValue, 0);
@@ -2574,7 +2575,7 @@ function downloadCSV(type, data, start, end) {
   document.body.removeChild(link);
 }
 
-function downloadPDF(type, data, summary, start, end) {
+async function downloadPDF(type, data, summary, start, end) {
   if (!data || !data.length) {
     showToast('No data available for the selected period', 'warn');
     return;
@@ -2659,32 +2660,38 @@ function downloadPDF(type, data, summary, start, end) {
   // NOTE: #print-area is hidden by default (print-only). html2pdf/html2canvas will render blanks
   // if the source element is display:none. So we render into a temporary offscreen container.
   const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-10000px';
+  container.style.position = 'absolute';
+  container.style.left = '0';
   container.style.top = '0';
   container.style.width = orientation === 'portrait' ? '794px' : '1123px'; // approx A4 px at 96dpi
   container.style.background = '#ffffff';
+  container.style.visibility = 'hidden';
+  container.style.opacity = '0';
+  container.style.pointerEvents = 'none';
   container.style.zIndex = '-1';
   container.innerHTML = html;
   document.body.appendChild(container);
   
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
   const opt = {
     margin: 0,
     filename: `${(def.filenamePrefix || 'StockFlow_Analytics')}_${title}_${start || 'all'}_to_${end || 'present'}.pdf`
       .replace(/\s+/g, '_')
       .replace(/[^\w\-\.]/g, ''),
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
+    html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation }
   };
 
-  html2pdf().set(opt).from(container).save().then(() => {
-    container.remove();
-  }).catch(err => {
-    container.remove();
+  try {
+    await html2pdf().set(opt).from(container).save();
+  } catch (err) {
     console.error('PDF generation failed:', err);
     showToast('PDF generation failed. Try again or use CSV.', 'error');
-  });
+  } finally {
+    container.remove();
+  }
 }
 
 function csvEscape(v) {

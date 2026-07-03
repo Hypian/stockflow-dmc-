@@ -244,11 +244,10 @@ const getFinancialReport = async (req, res) => {
         }
 
         const sql = `
-            WITH latest AS (
+            WITH latest_overall AS (
                 SELECT DISTINCT ON (product_id)
                     product_id, closing
                 FROM entries
-                WHERE 1=1 ${cteFilter}
                 ORDER BY product_id, entry_date DESC, entry_time DESC, created_at DESC
             ),
             agg AS (
@@ -263,14 +262,14 @@ const getFinancialReport = async (req, res) => {
             SELECT 
                 p.name as product_name,
                 COALESCE(p.unit_price, 0) as unit_price,
-                COALESCE(l.closing, 0) as current_stock,
-                COALESCE(l.closing, 0) * COALESCE(p.unit_price, 0) as current_value,
+                COALESCE(lo.closing, 0) as current_stock,
+                COALESCE(lo.closing, 0) * COALESCE(p.unit_price, 0) as current_value,
                 COALESCE(a.total_out, 0) as total_out,
                 COALESCE(a.total_in, 0) as total_in,
                 COALESCE(a.total_out, 0) * COALESCE(p.unit_price, 0) as stock_out_value,
                 COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value
             FROM products p
-            LEFT JOIN latest l ON l.product_id = p.id
+            LEFT JOIN latest_overall lo ON lo.product_id = p.id
             LEFT JOIN agg a ON a.product_id = p.id
             WHERE p.active = true
             ORDER BY p.name ASC
