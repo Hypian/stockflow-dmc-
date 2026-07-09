@@ -57,7 +57,10 @@ let db_audit_logs = [];
 
 // ─â€â‚¬─â€â‚¬ AUTO-POLLING ─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬
 let currentPollingInterval = null;
-const POLL_INTERVAL = 15000; // 15 seconds
+const POLL_INTERVAL = 60000; // 60 seconds
+const MIN_BACKGROUND_REFRESH_MS = 30000; // Wait at least 30 seconds between background refreshes
+let lastBackgroundRefresh = 0;
+const PRODUCT_POLL_PAGES = ['admin-products', 'user-dashboard', 'admin-stock'];
 
 function stopProductPolling() {
   if (currentPollingInterval) {
@@ -66,13 +69,22 @@ function stopProductPolling() {
   }
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopProductPolling();
+  } else if (PRODUCT_POLL_PAGES.includes(activePage)) {
+    startProductPolling(activePage);
+  }
+});
+
 function startProductPolling(page) {
   stopProductPolling();
-
-  const pagesWithProducts = ['admin-products', 'user-dashboard', 'admin-stock'];
-  if (!pagesWithProducts.includes(page)) return;
+  if (document.hidden) return;
+  if (!PRODUCT_POLL_PAGES.includes(page)) return;
 
   currentPollingInterval = setInterval(async () => {
+    if (document.hidden) return;
+
     try {
       const freshProducts = await API.getProducts();
 
@@ -94,7 +106,6 @@ function startProductPolling(page) {
         const currentPage = activePage;
         if (currentPage === 'admin-products') renderProductTable();
         if (currentPage === 'user-dashboard') {
-          // Update form dropdown
           const productEl = document.getElementById('f-product');
           if (productEl) {
             const selected = productEl.value;
@@ -232,7 +243,7 @@ async function doLogin() {
     // Fetch data before letting them in
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Data...';
     try {
-      db_products = await API.request('/inventory/products', 'GET');
+      db_products = await API.getProducts();
       db_entries = await API.getEntries();
     } catch (err) {
       console.error(err);
@@ -698,7 +709,9 @@ async function navigateTo(page, force = false) {
 
   // BACKGROUND SYNC: Refresh data from API
   const needsRefresh = ['admin-home', 'admin-stock', 'admin-products', 'admin-audit', 'user-dashboard', 'user-entries'];
-  if (needsRefresh.includes(page)) {
+  const shouldRefresh = Date.now() - lastBackgroundRefresh >= MIN_BACKGROUND_REFRESH_MS;
+  if (needsRefresh.includes(page) && shouldRefresh) {
+    lastBackgroundRefresh = Date.now();
     try {
       const isInitialFetch = db_entries.length === 0 && db_products.length === 0;
       
@@ -1224,7 +1237,7 @@ function deleteEntry(id) {
   showConfirm('Delete Entry', 'This will permanently remove this stock entry.', async () => {
     try {
       await API.deleteEntry(id);
-      db_entries = await API.getEntries();
+      db_entries = db_entries.filter(e => String(e.id) !== String(id));
       renderAdminStockTable();
       showToast('Entry deleted', 'success');
     } catch (error) {
@@ -1580,7 +1593,7 @@ async function saveProduct(id) {
     }
 
     closeModal();
-    navigateTo('admin-products', true);
+    refreshCurrentView();
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -1600,7 +1613,7 @@ async function toggleProductStatus(id) {
   try {
     const updated = await API.saveProduct(id, { ...p, active: !p.active });
     db_products = db_products.map(x => String(x.id) === String(id) ? updated : x);
-    navigateTo('admin-products', true);
+    refreshCurrentView();
     showToast('Product status updated', 'info');
   } catch (error) {
     showToast(error.message, 'error');
@@ -1619,8 +1632,8 @@ async function deleteProduct(id) {
     async () => {
       try {
         await API.deleteProduct(id);
-        db_products = await API.getProducts();
-        navigateTo('admin-products', true);
+        db_products = db_products.filter(x => String(x.id) !== String(id));
+        refreshCurrentView();
         showToast('Product deleted', 'success');
       } catch (error) {
         showToast(error.message, 'error');
@@ -3306,7 +3319,7 @@ async function saveEditEntry(id, opening) {
     } : e);
 
     closeModal();
-    navigateTo(activePage, true);
+    refreshCurrentView();
     showToast('Entry updated successfully', 'success');
   } catch (error) {
     showToast(error.message, 'error');
@@ -3326,19 +3339,6 @@ async function updateUnit() {
   const productId = sel?.value;
   const openingInput = document.getElementById('f-opening');
   if (openingInput && productId) {
-    try {
-      const freshEntries = await API.getEntries();
-      if (Array.isArray(freshEntries)) {
-        db_entries = freshEntries.map(e => ({
-          ...e,
-          userName: cleanEncoding(e.userName),
-          productName: cleanEncoding(e.productName)
-        }));
-      }
-    } catch (e) {
-      console.warn('Failed to refresh entries for opening autofill:', e?.message || e);
-    }
-
     const openingStock = getUnifiedOpeningStock(productId);
 
     if (openingStock !== null && openingStock !== undefined) {
@@ -3528,19 +3528,10 @@ async function saveEntry() {
 
     clearForm();
 
-    // Refresh data and re-render current page
-    try {
-      db_entries = await API.getEntries();
-      db_products = await API.getProducts();
-
-      // IMPORTANT: Re-render the current view to show the new entry immediately
-      const currentPage = activePage;
-      if (currentPage === 'user-dashboard' || currentPage === 'admin-home') {
-        navigateTo(currentPage, true);
-      }
-    } catch (e) {
-      console.warn("Could not refresh UI data:", e);
-      navigateTo(activePage, true);
+    // Refresh only what is required after save
+    const currentPage = activePage;
+    if (currentPage === 'user-dashboard' || currentPage === 'admin-home') {
+      refreshCurrentView();
     }
   } catch (error) {
     showToast(error.message, 'error');
@@ -3650,6 +3641,38 @@ function initPage(page) {
   }
 }
 
+function refreshCurrentView() {
+  const container = document.getElementById('pages');
+  if (!container) return;
+
+  switch (activePage) {
+    case 'admin-stock':
+      renderAdminStockTable();
+      return;
+    case 'admin-products':
+      renderProductTable();
+      return;
+    case 'admin-audit':
+      renderAuditTable();
+      return;
+    case 'user-entries':
+      renderUserEntriesTable();
+      return;
+    case 'admin-home':
+    case 'user-dashboard':
+    case 'admin-analytics':
+      container.innerHTML = '';
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'animate-fade-in';
+      pageDiv.innerHTML = renderPage(activePage);
+      container.appendChild(pageDiv);
+      initPage(activePage);
+      return;
+    default:
+      navigateTo(activePage, true);
+  }
+}
+
 // ─â€â‚¬─â€â‚¬ PAGINATION ─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬
 function paginationHTML(current, total, varName, fn) {
   if (total <= 1) return '';
@@ -3728,7 +3751,7 @@ async function initApp() {
     // This ensures data from a new session appears without requiring re-login.
     try {
       const [freshProducts, freshEntries] = await Promise.all([
-        API.request('/inventory/products', 'GET'),
+        API.getProducts(),
         API.getEntries()
       ]);
       const dataChanged = JSON.stringify(freshEntries) !== JSON.stringify(db_entries) ||
@@ -3737,7 +3760,7 @@ async function initApp() {
       db_entries = freshEntries;
       if (dataChanged) {
         // Re-render current page silently to show fresh data
-        navigateTo(activePage, true);
+        refreshCurrentView();
       }
     } catch (e) {
       console.warn('Background session sync failed:', e.message);
