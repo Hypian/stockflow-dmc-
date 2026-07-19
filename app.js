@@ -29,7 +29,7 @@ function getKnownUsers() {
 }
 
 /**
- * FIX: Robust encoding cleanup to prevent "leaking" artifacts like Ã¢â€ â‚¬
+ * FIX: Robust encoding cleanup to prevent "leaking" artifacts like ──
  */
 function cleanEncoding(str) {
   if (typeof str !== 'string') return str;
@@ -259,7 +259,7 @@ async function doLogin() {
     startClock();
     
     navigateTo(currentUser.role === 'admin' ? 'admin-home' : 'user-dashboard');
-    showToast(`Welcome back, ${currentUser.name.split(' ')[0]}! Ã°Å¸â€˜â€¹`, 'success');
+    showToast(`Welcome back, ${currentUser.name.split(' ')[0]}! \u{1F44B}`, 'success');
   } catch (error) {
     showToast(error.message, 'error');
     shakeInput();
