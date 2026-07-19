@@ -3766,10 +3766,12 @@ async function initApp() {
       console.warn('Background session sync failed:', e.message);
     } finally {
       if (splash) splash.classList.add('hidden');
+      document.body.classList.remove('loading');
     }
   } else {
     // Show login screen if no session
     if (splash) splash.classList.add('hidden');
+    document.body.classList.remove('loading');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-shell').classList.add('hidden');
     
