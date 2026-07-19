@@ -111,30 +111,49 @@ async function restoreFromAuditLogs(pool) {
       await pool.query('TRUNCATE TABLE entries CASCADE');
       await pool.query('TRUNCATE TABLE products CASCADE');
 
+      // Fetch valid user IDs to prevent foreign key errors
+      const usersRes = await pool.query('SELECT id FROM users');
+      const validUserIds = new Set(usersRes.rows.map(u => Number(u.id)));
+
       // Insert products with their original IDs
       for (const p of restoredProducts) {
-        await pool.query(
-          'INSERT INTO products (id, name, unit, unit_price, active) VALUES ($1, $2, $3, $4, $5)',
-          [p.id, p.name, p.unit, p.unit_price, p.active]
-        );
+        try {
+          await pool.query(
+            'INSERT INTO products (id, name, unit, unit_price, active) VALUES ($1, $2, $3, $4, $5)',
+            [p.id, p.name, p.unit, p.unit_price, p.active]
+          );
+        } catch (pErr) {
+          console.error(`Failed to restore product ID ${p.id}:`, pErr.message);
+        }
       }
 
       // Insert entries with their original IDs
       for (const e of restoredEntries) {
-        const productExists = restoredProducts.some(p => p.id === e.product_id);
-        if (productExists) {
-          await pool.query(
-            `INSERT INTO entries 
-            (id, product_id, user_id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-            [e.id, e.product_id, e.user_id, e.opening, e.received, e.disbursed, e.damaged, e.closing, e.variance, e.shift, e.entry_date, e.entry_time]
-          );
+        try {
+          const productExists = restoredProducts.some(p => p.id === e.product_id);
+          if (productExists) {
+            // Safe foreign key check for user_id
+            const userId = e.user_id && validUserIds.has(Number(e.user_id)) ? Number(e.user_id) : null;
+            
+            await pool.query(
+              `INSERT INTO entries 
+              (id, product_id, user_id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+              [e.id, e.product_id, userId, e.opening, e.received, e.disbursed, e.damaged, e.closing, e.variance, e.shift, e.entry_date, e.entry_time]
+            );
+          }
+        } catch (eErr) {
+          console.error(`Failed to restore entry ID ${e.id}:`, eErr.message);
         }
       }
 
       // 4. Update the PostgreSQL sequences for the tables
-      await pool.query(`SELECT setval('products_id_seq', COALESCE((SELECT MAX(id)+1 FROM products), 1), false)`);
-      await pool.query(`SELECT setval('entries_id_seq', COALESCE((SELECT MAX(id)+1 FROM entries), 1), false)`);
+      try {
+        await pool.query(`SELECT setval('products_id_seq', COALESCE((SELECT MAX(id)+1 FROM products), 1), false)`);
+        await pool.query(`SELECT setval('entries_id_seq', COALESCE((SELECT MAX(id)+1 FROM entries), 1), false)`);
+      } catch (seqErr) {
+        console.warn('Failed to update ID sequences:', seqErr.message);
+      }
       
       console.log('Database successfully restored from audit logs!');
     } else {
