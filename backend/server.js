@@ -38,132 +38,110 @@ app.use((err, req, res, next) => {
 
 const bcrypt = require('bcryptjs');
 
-async function autoSeed(pool) {
+async function restoreFromAuditLogs(pool) {
   try {
-    // 1. Seed Users
-    const usersCount = await pool.query('SELECT COUNT(*) FROM users');
-    if (Number(usersCount.rows[0].count) === 0) {
-      console.log('No users found. Auto-seeding default users...');
-      const defaultUsers = [
-        { name: 'Rusine Peggy', username: 'rusine', password: 'rusine123', role: 'admin' },
-        { name: 'John Rwamanywa', username: 'john', password: 'john123', role: 'user' },
-        { name: 'Binama David', username: 'binama', password: 'binama123', role: 'user' },
-      ];
-      for (const u of defaultUsers) {
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(u.password, salt);
-        await pool.query(
-          'INSERT INTO users (name, username, password, role) VALUES ($1, $2, $3, $4)',
-          [u.name, u.username, hashedPassword, u.role]
-        );
+    console.log('--- STARTING DATABASE AUTO-RECOVERY FROM AUDIT LOGS ---');
+
+    // 1. Reconstruct Products
+    const productLogs = await pool.query(`
+      SELECT * FROM audit_logs 
+      WHERE table_name = 'products' 
+      ORDER BY timestamp ASC
+    `);
+    
+    const productsMap = new Map();
+    for (const log of productLogs.rows) {
+      const { action, record_id, new_values } = log;
+      if (action === 'CREATE' || action === 'UPDATE') {
+        if (new_values) {
+          productsMap.set(record_id, {
+            id: record_id,
+            name: new_values.name,
+            unit: new_values.unit,
+            unit_price: new_values.unit_price || new_values.unitPrice || 0,
+            active: new_values.active !== undefined ? new_values.active : true
+          });
+        }
+      } else if (action === 'DELETE') {
+        productsMap.delete(record_id);
       }
-      console.log('Default users auto-seeded successfully.');
     }
 
-    // 2. Seed Products (Upgraded to full 43-item catalog)
-    const productsCount = await pool.query('SELECT COUNT(*) FROM products');
-    if (Number(productsCount.rows[0].count) < 15) {
-      console.log('Catalog is small or empty. Wiping and seeding full 43-item catalog...');
+    const restoredProducts = Array.from(productsMap.values());
+    console.log(`Reconstructed ${restoredProducts.length} products from audit logs.`);
+
+    // 2. Reconstruct Entries
+    const entryLogs = await pool.query(`
+      SELECT * FROM audit_logs 
+      WHERE table_name = 'entries' 
+      ORDER BY timestamp ASC
+    `);
+
+    const entriesMap = new Map();
+    for (const log of entryLogs.rows) {
+      const { action, record_id, new_values } = log;
+      if (action === 'CREATE' || action === 'UPDATE') {
+        if (new_values) {
+          entriesMap.set(record_id, {
+            id: record_id,
+            product_id: new_values.product_id || new_values.productId,
+            user_id: new_values.user_id || new_values.userId,
+            opening: new_values.opening,
+            received: new_values.received,
+            disbursed: new_values.disbursed,
+            damaged: new_values.damaged,
+            closing: new_values.closing,
+            variance: new_values.variance,
+            shift: new_values.shift,
+            entry_date: new_values.entry_date || new_values.date,
+            entry_time: new_values.entry_time || new_values.time
+          });
+        }
+      } else if (action === 'DELETE') {
+        entriesMap.delete(record_id);
+      }
+    }
+
+    const restoredEntries = Array.from(entriesMap.values());
+    console.log(`Reconstructed ${restoredEntries.length} entries from audit logs.`);
+
+    // 3. Restore to Database
+    if (restoredProducts.length > 0) {
+      console.log('Restoring products and entries...');
       await pool.query('TRUNCATE TABLE entries CASCADE');
       await pool.query('TRUNCATE TABLE products CASCADE');
 
-      const defaultProducts = [
-        // Oral Antibiotics
-        { name: 'Amoxicillin 250mg', unit: 'packs', unit_price: 3000, active: true },
-        { name: 'Amoxicillin 500mg', unit: 'packs', unit_price: 4500, active: true },
-        { name: 'Ciprofloxacin 500mg', unit: 'packs', unit_price: 5000, active: true },
-        { name: 'Azithromycin 500mg', unit: 'packs', unit_price: 6500, active: true },
-        { name: 'Metronidazole 250mg', unit: 'packs', unit_price: 2500, active: true },
-        { name: 'Metronidazole 500mg', unit: 'packs', unit_price: 3500, active: true },
-        { name: 'Doxycycline 100mg', unit: 'packs', unit_price: 2800, active: true },
-        { name: 'Erythromycin 250mg', unit: 'packs', unit_price: 4000, active: true },
-        
-        // Analgesics & Antipyretics
-        { name: 'Paracetamol 500mg', unit: 'boxes', unit_price: 2000, active: true },
-        { name: 'Paracetamol Syrup 125mg/5ml', unit: 'bottles', unit_price: 1200, active: true },
-        { name: 'Ibuprofen 400mg', unit: 'packs', unit_price: 2800, active: true },
-        { name: 'Diclofenac 50mg', unit: 'packs', unit_price: 3000, active: true },
-        { name: 'Tramadol 50mg', unit: 'packs', unit_price: 4000, active: true },
-        { name: 'Aspirin 75mg (Cardioselective)', unit: 'packs', unit_price: 1500, active: true },
-        
-        // Gastrointestinal & Antacids
-        { name: 'Omeprazole 20mg', unit: 'packs', unit_price: 3500, active: true },
-        { name: 'Ranitidine 150mg', unit: 'packs', unit_price: 2200, active: true },
-        { name: 'Antacid Suspension', unit: 'bottles', unit_price: 1800, active: true },
-        { name: 'ORS (Oral Rehydration Salts)', unit: 'sachets', unit_price: 200, active: true },
-        { name: 'Zinc Sulfate 20mg', unit: 'packs', unit_price: 1000, active: true },
-        
-        // Respiratory & Allergy
-        { name: 'Salbutamol Inhaler 100mcg', unit: 'pcs', unit_price: 4500, active: true },
-        { name: 'Cetirizine 10mg', unit: 'packs', unit_price: 1500, active: true },
-        { name: 'Prednisolone 5mg', unit: 'packs', unit_price: 2000, active: true },
-        
-        // Antidiabetic & Cardiovascular
-        { name: 'Metformin 500mg', unit: 'packs', unit_price: 3000, active: true },
-        { name: 'Amlodipine 5mg', unit: 'packs', unit_price: 2500, active: true },
-        { name: 'Amlodipine 10mg', unit: 'packs', unit_price: 3500, active: true },
-        { name: 'Furosemide 40mg', unit: 'packs', unit_price: 1800, active: true },
-        
-        // Intravenous Fluids & Injectables
-        { name: 'Normal Saline (NS 0.9%) 500ml', unit: 'bottles', unit_price: 1500, active: true },
-        { name: 'Ringers Lactate (RL) 500ml', unit: 'bottles', unit_price: 1800, active: true },
-        { name: 'Dextrose 5% (D5W) 500ml', unit: 'bottles', unit_price: 1600, active: true },
-        { name: 'Ceftriaxone 1g (Injection)', unit: 'vials', unit_price: 2500, active: true },
-        
-        // Medical Supplies & Consumables
-        { name: 'Surgical Gloves size 6.5', unit: 'pairs', unit_price: 400, active: true },
-        { name: 'Surgical Gloves size 7.0', unit: 'pairs', unit_price: 400, active: true },
-        { name: 'Surgical Gloves size 7.5', unit: 'pairs', unit_price: 400, active: true },
-        { name: 'Surgical Gloves size 8.0', unit: 'pairs', unit_price: 400, active: true },
-        { name: 'Syringe 2ml with Needle', unit: 'pcs', unit_price: 100, active: true },
-        { name: 'Syringe 5ml with Needle', unit: 'pcs', unit_price: 120, active: true },
-        { name: 'Syringe 10ml with Needle', unit: 'pcs', unit_price: 150, active: true },
-        { name: 'IV Cannula 18G', unit: 'pcs', unit_price: 500, active: true },
-        { name: 'IV Cannula 20G', unit: 'pcs', unit_price: 500, active: true },
-        { name: 'IV Cannula 22G', unit: 'pcs', unit_price: 500, active: true },
-        { name: 'Gauze Swab 10x10cm', unit: 'packs', unit_price: 2200, active: true },
-        { name: 'Cotton Wool 500g', unit: 'rolls', unit_price: 3500, active: true },
-        { name: 'Face Mask 3-ply', unit: 'boxes', unit_price: 3000, active: true }
-      ];
-
-      for (const p of defaultProducts) {
+      // Insert products with their original IDs
+      for (const p of restoredProducts) {
         await pool.query(
-          'INSERT INTO products (name, unit, unit_price, active) VALUES ($1, $2, $3, $4)',
-          [p.name, p.unit, p.unit_price, p.active]
+          'INSERT INTO products (id, name, unit, unit_price, active) VALUES ($1, $2, $3, $4, $5)',
+          [p.id, p.name, p.unit, p.unit_price, p.active]
         );
       }
-      console.log('Full product catalog auto-seeded successfully.');
-    }
 
-    // 3. Seed Entries
-    const entriesCount = await pool.query('SELECT COUNT(*) FROM entries');
-    if (Number(entriesCount.rows[0].count) === 0) {
-      console.log('No entries found. Auto-seeding initial stock entries...');
-      const dbProducts = await pool.query('SELECT id FROM products');
-      const normalUser = await pool.query("SELECT id FROM users WHERE role = 'user' LIMIT 1");
-      const userId = normalUser.rows.length > 0 ? normalUser.rows[0].id : 1;
-      const todayStr = new Date().toISOString().split('T')[0];
-      const timeStr = '10:30:00';
-
-      for (const p of dbProducts.rows) {
-        const opening = Math.floor(Math.random() * 50) + 10;
-        const received = Math.floor(Math.random() * 20);
-        const disbursed = Math.floor(Math.random() * 15);
-        const damaged = Math.random() > 0.8 ? 1 : 0;
-        const closing = opening + received - disbursed - damaged;
-        const variance = 0;
-
-        await pool.query(
-          `INSERT INTO entries 
-          (product_id, user_id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [p.id, userId, opening, received, disbursed, damaged, closing, variance, 'morning', todayStr, timeStr]
-        );
+      // Insert entries with their original IDs
+      for (const e of restoredEntries) {
+        const productExists = restoredProducts.some(p => p.id === e.product_id);
+        if (productExists) {
+          await pool.query(
+            `INSERT INTO entries 
+            (id, product_id, user_id, opening, received, disbursed, damaged, closing, variance, shift, entry_date, entry_time)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [e.id, e.product_id, e.user_id, e.opening, e.received, e.disbursed, e.damaged, e.closing, e.variance, e.shift, e.entry_date, e.entry_time]
+          );
+        }
       }
-      console.log('Initial stock entries auto-seeded successfully.');
+
+      // 4. Update the PostgreSQL sequences for the tables
+      await pool.query(`SELECT setval('products_id_seq', COALESCE((SELECT MAX(id)+1 FROM products), 1), false)`);
+      await pool.query(`SELECT setval('entries_id_seq', COALESCE((SELECT MAX(id)+1 FROM entries), 1), false)`);
+      
+      console.log('Database successfully restored from audit logs!');
+    } else {
+      console.log('No product audit logs found to restore.');
     }
   } catch (err) {
-    console.error('Auto-seeding failed:', err);
+    console.error('Database auto-recovery failed:', err);
   }
 }
 
@@ -185,9 +163,9 @@ app.listen(PORT, async () => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_entries_sorting ON entries (product_id, entry_date DESC, entry_time DESC, created_at DESC)');
     console.log('Database indexes verification complete.');
 
-    // Auto-seed database if empty
-    await autoSeed(pool);
+    // Auto-restore database from audit logs
+    await restoreFromAuditLogs(pool);
   } catch (err) {
-    console.error('Migration/Seeding failed:', err.message);
+    console.error('Migration/Restoration failed:', err.message);
   }
 });
