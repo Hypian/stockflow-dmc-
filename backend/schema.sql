@@ -51,3 +51,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 -- Create an index on audit logs for faster searching
 CREATE INDEX IF NOT EXISTS idx_audit_record ON audit_logs(table_name, record_id);
+
+-- Performance Optimization Indexes
+CREATE INDEX IF NOT EXISTS idx_entries_product_id ON entries (product_id);
+CREATE INDEX IF NOT EXISTS idx_entries_entry_date ON entries (entry_date);
+CREATE INDEX IF NOT EXISTS idx_entries_product_date ON entries (product_id, entry_date);
+CREATE INDEX IF NOT EXISTS idx_entries_sorting ON entries (product_id, entry_date DESC, entry_time DESC, created_at DESC);
