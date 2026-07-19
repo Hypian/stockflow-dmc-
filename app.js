@@ -1185,7 +1185,7 @@ function renderAdminStock() {
       </div>
 
       <!-- Desktop Table View -->
-      <div class="table-desktop overflow-x-auto hidden md:block">
+      <div class="table-desktop overflow-x-auto overflow-y-auto max-h-[60vh] hidden md:block">
         <table class="data-table">
           <thead><tr>
             <th>Product</th><th>User</th><th>Opening</th><th>Received</th>
@@ -1197,7 +1197,7 @@ function renderAdminStock() {
       </div>
 
       <!-- Mobile List View (Simplified) -->
-      <div id="as-cards" class="md:hidden divide-y divide-slate-100"></div>
+      <div id="as-cards" class="md:hidden divide-y divide-slate-100 overflow-y-auto max-h-[60vh]"></div>
 
       <div id="as-pagination" class="flex items-center justify-between p-4 border-t border-white/5 bg-slate-50/50"></div>
     </div>
@@ -1390,14 +1390,14 @@ function renderAdminProducts() {
         </div>
       </div>
       <!-- Desktop Table View -->
-      <div class="table-desktop overflow-x-auto hidden md:block">
+      <div class="table-desktop overflow-x-auto overflow-y-auto max-h-[60vh] hidden md:block">
         <table class="data-table">
           <thead><tr><th>#</th><th>Product Name</th><th>Unit</th><th>Unit Price</th><th>Status</th><th>Current Stock</th><th>Entries</th><th>Actions</th></tr></thead>
           <tbody id="prod-tbody"></tbody>
         </table>
       </div>
       <!-- Mobile Card View -->
-      <div id="prod-cards" class="table-cards p-4"></div>
+      <div id="prod-cards" class="table-cards p-4 overflow-y-auto max-h-[60vh]"></div>
     </div>
   </div>`;
 }
