@@ -2,7 +2,6 @@
   html, body { min-height: 100%; overflow-x: hidden; overscroll-behavior-y: none; }
   body { font-family: 'Sora', sans-serif; background: #f8fafc; color: #0f172a; overflow-y: auto; overscroll-behavior-y: none; }
   body.loading { overflow: hidden !important; height: 100vh !important; }
-  .hidden { display: none !important; }
   #app-shell, #main-content { min-height: 100vh; }
   #main-content { overflow-y: auto; }
   .mono { font-family: 'DM Mono', monospace; }
