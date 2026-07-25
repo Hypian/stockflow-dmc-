@@ -36,10 +36,13 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Restrict role assignment: only authenticated admins can create 'admin' accounts
+    const assignedRole = (req.user && req.user.role === 'admin' && role) ? role : 'user';
+
     // Create user
     const newUser = await query(
       'INSERT INTO users (name, username, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, username, role',
-      [name, username, hashedPassword, role || 'user']
+      [name, username, hashedPassword, assignedRole]
     );
 
     const user = newUser.rows[0];

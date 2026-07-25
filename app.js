@@ -2830,7 +2830,7 @@ async function downloadPDF(type, data, summary, start, end) {
         <tfoot style="background:#0f172a;color:#ffffff;font-weight:800;">
           <tr>
             ${columns.map((c, i) => {
-              if (i === 0) return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;">GRAND TOTALS</td>`;
+              if (i === 0 || c.key === 'product_name') return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;">GRAND TOTALS</td>`;
               if (c.key === 'unit_price') return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;text-align:right;">—</td>`;
               const sum = data.reduce((s, r) => s + (Number(def.value(r, c.key)) || 0), 0);
               const display = def.formatValue ? def.formatValue(sum, c.key) : sum.toLocaleString();
@@ -2919,8 +2919,11 @@ function getAnalyticsReportDefinitions() {
         { key: 'current_stock', label: 'Current Stock', align: 'right' },
         { key: 'current_value', label: 'Current Value (RWF)', align: 'right' }
       ],
-      value: (row, key) => ['unit_price', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
+      value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
       formatValue: (v, key) => {
+        if (key === 'product_name') {
+          return v === null || v === undefined || v === '' ? '—' : String(v);
+        }
         if (['unit_price', 'received_value', 'stock_out_value', 'damaged_value', 'current_value'].includes(key)) {
           return Number(v || 0).toLocaleString();
         }

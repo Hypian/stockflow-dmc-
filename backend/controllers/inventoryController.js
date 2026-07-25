@@ -162,6 +162,11 @@ const updateEntry = async (req, res) => {
     
     const oldValues = existingResult.rows[0];
 
+    // Ownership check: regular users can only update their own entries
+    if (req.user.role !== 'admin' && String(oldValues.user_id) !== String(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized to edit stock entries created by other staff' });
+    }
+
     // ── MANDATORY HANDOVER LOGIC (For Updates) ──
     const finalShift = updates.shift || oldValues.shift;
     const finalDate = updates.entry_date || oldValues.entry_date;
