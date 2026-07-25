@@ -463,43 +463,42 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
     <div style="background:#1e293b;padding:24px 36px;border-radius:16px;border:1px solid #334155;text-align:center;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
       <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px;color:#38bdf8;margin-bottom:12px;"></i>
       <div style="font-size:16px;font-weight:700;color:#f8fafc;">Generating PDF Document...</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Compiling report and opening document preview...</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Compiling report... Please wait.</div>
     </div>
   `;
   document.body.appendChild(overlay);
 
-  // Snapshot container must be absolute (html2canvas fails on position:fixed)
-  const container = document.createElement('div');
-  container.style.position = 'absolute';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = orientation === 'portrait' ? '794px' : '1123px';
-  container.style.background = '#ffffff';
-  container.style.color = '#000000';
-  container.style.display = 'block';
-  container.style.visibility = 'visible';
-  container.style.opacity = '1';
-  container.style.zIndex = '999999';
-  container.style.boxSizing = 'border-box';
-  container.innerHTML = htmlContent;
+  // Use an isolated offscreen iframe so html2canvas captures in a clean HTML document context without parent CSS or overlay interference
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-9999px';
+  iframe.style.top = '-9999px';
+  iframe.style.width = orientation === 'portrait' ? '794px' : '1123px';
+  iframe.style.height = '1200px';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
 
-  // Force all child elements and print-only elements to be visible inside container
-  const childElements = container.querySelectorAll('*');
-  childElements.forEach(el => {
-    if (el.classList.contains('print-only') || window.getComputedStyle(el).display === 'none') {
-      el.style.display = 'block';
-    }
-    el.style.visibility = 'visible';
-  });
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; background: #ffffff !important; color: #0f172a !important; font-family: 'Sora', 'Inter', system-ui, -apple-system, sans-serif; width: ${orientation === 'portrait' ? '794px' : '1123px'}; }
+          .print-only { display: block !important; }
+        </style>
+      </head>
+      <body>
+        ${htmlContent}
+      </body>
+    </html>
+  `);
+  doc.close();
 
-  document.body.appendChild(container);
-
-  // Temporarily scroll to top so html2canvas captures from top-left without scroll clipping
-  const prevScrollX = window.scrollX;
-  const prevScrollY = window.scrollY;
-  window.scrollTo(0, 0);
-
-  // Allow DOM & images to settle
+  // Allow DOM & images to settle inside iframe
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const opt = {
@@ -520,12 +519,13 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   };
 
   try {
+    const target = doc.body;
     // Generate PDF and save file to Downloads
-    await html2pdf().set(opt).from(container).save();
+    await html2pdf().set(opt).from(target).save();
 
     // Generate Blob URL to open document directly in a new tab for instant viewing
     try {
-      const pdfBlobUrl = await html2pdf().set(opt).from(container).output('bloburl');
+      const pdfBlobUrl = await html2pdf().set(opt).from(target).output('bloburl');
       if (pdfBlobUrl) {
         window.open(pdfBlobUrl, '_blank');
       }
@@ -537,8 +537,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
     console.error('PDF export failed:', err);
     throw err;
   } finally {
-    window.scrollTo(prevScrollX, prevScrollY);
-    container.remove();
+    iframe.remove();
     overlay.remove();
   }
 }
