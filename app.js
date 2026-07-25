@@ -2827,6 +2827,17 @@ async function downloadPDF(type, data, summary, start, end) {
             </tr>
           `).join('')}
         </tbody>
+        <tfoot style="background:#0f172a;color:#ffffff;font-weight:800;">
+          <tr>
+            ${columns.map((c, i) => {
+              if (i === 0) return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;">GRAND TOTALS</td>`;
+              if (c.key === 'unit_price') return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;text-align:right;">—</td>`;
+              const sum = data.reduce((s, r) => s + (Number(def.value(r, c.key)) || 0), 0);
+              const display = def.formatValue ? def.formatValue(sum, c.key) : sum.toLocaleString();
+              return `<td style="padding:9px 10px;border:1px solid #1e293b;font-size:10px;text-align:right;">${display}</td>`;
+            }).join('')}
+          </tr>
+        </tfoot>
       </table>
       
       <div style="display:flex;justify-content:space-between;gap:12px;font-size:9px;color:#64748b;margin-top:18px;border-top:1px solid #e2e8f0;padding-top:8px;">
@@ -2899,27 +2910,33 @@ function getAnalyticsReportDefinitions() {
       columns: [
         { key: 'product_name', label: 'Product' },
         { key: 'unit_price', label: 'Unit Price (RWF)', align: 'right' },
-        { key: 'current_stock', label: 'Current Stock', align: 'right' },
-        { key: 'current_value', label: 'Current Value (RWF)', align: 'right' },
+        { key: 'total_in', label: 'Received (Qty)', align: 'right' },
+        { key: 'received_value', label: 'Received Value (RWF)', align: 'right' },
+        { key: 'total_out', label: 'Exited (Qty)', align: 'right' },
         { key: 'stock_out_value', label: 'Stock Out Value (RWF)', align: 'right' },
-        { key: 'received_value', label: 'Received Value (RWF)', align: 'right' }
+        { key: 'total_damaged', label: 'Damaged (Qty)', align: 'right' },
+        { key: 'damaged_value', label: 'Damaged Loss (RWF)', align: 'right' },
+        { key: 'current_stock', label: 'Current Stock', align: 'right' },
+        { key: 'current_value', label: 'Current Value (RWF)', align: 'right' }
       ],
-      value: (row, key) => ['unit_price', 'current_stock', 'current_value', 'stock_out_value', 'received_value'].includes(key) ? num(row[key]) : row?.[key],
+      value: (row, key) => ['unit_price', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
       formatValue: (v, key) => {
-        if (['unit_price', 'current_value', 'stock_out_value', 'received_value'].includes(key)) {
-          return Number(v).toLocaleString();
+        if (['unit_price', 'received_value', 'stock_out_value', 'damaged_value', 'current_value'].includes(key)) {
+          return Number(v || 0).toLocaleString();
         }
-        return v === null || v === undefined || v === '' ? '— ' : String(v);
+        return v === null || v === undefined || v === '' ? '0' : Number(v || 0).toLocaleString();
       },
       computeSummary: (data) => {
-        const totalCurrent = data.reduce((s, r) => s + num(r.current_value), 0);
-        const totalOut = data.reduce((s, r) => s + num(r.stock_out_value), 0);
         const totalIn = data.reduce((s, r) => s + num(r.received_value), 0);
+        const totalOut = data.reduce((s, r) => s + num(r.stock_out_value), 0);
+        const totalDamaged = data.reduce((s, r) => s + num(r.damaged_value), 0);
+        const totalCurrent = data.reduce((s, r) => s + num(r.current_value), 0);
         return {
           cards: [
-            { label: 'Total Current Value', value: totalCurrent.toLocaleString() + ' RWF' },
-            { label: 'Total Stock Out Value', value: totalOut.toLocaleString() + ' RWF' },
-            { label: 'Total Received Value', value: totalIn.toLocaleString() + ' RWF' }
+            { label: 'Total Received Value', value: totalIn.toLocaleString() + ' RWF' },
+            { label: 'Total Exited Value', value: totalOut.toLocaleString() + ' RWF' },
+            { label: 'Total Damaged Loss', value: totalDamaged.toLocaleString() + ' RWF' },
+            { label: 'Total Current Valuation', value: totalCurrent.toLocaleString() + ' RWF' }
           ]
         };
       }

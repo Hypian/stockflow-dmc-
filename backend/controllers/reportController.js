@@ -254,7 +254,8 @@ const getFinancialReport = async (req, res) => {
                 SELECT 
                     product_id,
                     COALESCE(SUM(disbursed), 0) as total_out,
-                    COALESCE(SUM(received), 0) as total_in
+                    COALESCE(SUM(received), 0) as total_in,
+                    COALESCE(SUM(damaged), 0) as total_damaged
                 FROM entries
                 WHERE 1=1 ${aggFilter}
                 GROUP BY product_id
@@ -266,8 +267,10 @@ const getFinancialReport = async (req, res) => {
                 COALESCE(lo.closing, 0) * COALESCE(p.unit_price, 0) as current_value,
                 COALESCE(a.total_out, 0) as total_out,
                 COALESCE(a.total_in, 0) as total_in,
+                COALESCE(a.total_damaged, 0) as total_damaged,
                 COALESCE(a.total_out, 0) * COALESCE(p.unit_price, 0) as stock_out_value,
-                COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value
+                COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value,
+                COALESCE(a.total_damaged, 0) * COALESCE(p.unit_price, 0) as damaged_value
             FROM products p
             LEFT JOIN latest_overall lo ON lo.product_id = p.id
             LEFT JOIN agg a ON a.product_id = p.id
@@ -284,14 +287,17 @@ const getFinancialReport = async (req, res) => {
           current_value: Number(r.current_value || 0),
           total_out: Number(r.total_out || 0),
           total_in: Number(r.total_in || 0),
+          total_damaged: Number(r.total_damaged || 0),
           stock_out_value: Number(r.stock_out_value || 0),
-          received_value: Number(r.received_value || 0)
+          received_value: Number(r.received_value || 0),
+          damaged_value: Number(r.damaged_value || 0)
         }));
 
         const summary = {
           totalCurrentValue: data.reduce((s, r) => s + r.current_value, 0),
           totalStockOutValue: data.reduce((s, r) => s + r.stock_out_value, 0),
-          totalReceivedValue: data.reduce((s, r) => s + r.received_value, 0)
+          totalReceivedValue: data.reduce((s, r) => s + r.received_value, 0),
+          totalDamagedValue: data.reduce((s, r) => s + r.damaged_value, 0)
         };
 
         res.json({ data, summary });
