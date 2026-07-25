@@ -446,7 +446,7 @@ function generateShiftReport(type, context = 'normal') {
 
 async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape') {
   const container = document.createElement('div');
-  container.style.position = 'absolute';
+  container.style.position = 'fixed';
   container.style.left = '0';
   container.style.top = '0';
   container.style.width = orientation === 'portrait' ? '794px' : '1123px';
@@ -454,7 +454,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   container.style.opacity = '1';
   container.style.visibility = 'visible';
   container.style.pointerEvents = 'none';
-  container.style.zIndex = '-99999';
+  container.style.zIndex = '999999';
   container.innerHTML = htmlContent;
 
   // Force any .print-only elements to be visible inside snapshot container
@@ -479,6 +479,8 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
       allowTaint: true,
       scrollX: 0,
       scrollY: 0,
+      x: 0,
+      y: 0,
       windowWidth: orientation === 'portrait' ? 794 : 1123
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
@@ -528,10 +530,10 @@ async function downloadShiftPDF(today, autoLogout = false) {
           <div style="font-size:9pt;color:#444;margin-top:4px;">Generation Date: <strong>${now.toLocaleString('en-GB')}</strong></div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:30px;background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-radius:12px;">
-        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Responsible Staff</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${currentUser.name}</div></div>
-        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Report Date</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</div></div>
-        <div><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Shift Period</div><div style="font-size:11pt;font-weight:700;color:#0f172a;">${getShiftLabel(sessionShift || getCurrentShift())}</div></div>
+      <div style="display:flex;justify-content:space-between;gap:20px;margin-bottom:30px;background:#f8fafc;padding:20px;border:1px solid #e2e8f0;border-radius:12px;">
+        <div style="flex:1;"><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Responsible Staff</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${currentUser.name}</div></div>
+        <div style="flex:1;"><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Report Date</div><div style="font-size:12pt;font-weight:700;color:#0f172a;">${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</div></div>
+        <div style="flex:1;"><div style="font-size:8pt;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Shift Period</div><div style="font-size:11pt;font-weight:700;color:#0f172a;">${getShiftLabel(sessionShift || getCurrentShift())}</div></div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:30px;">
         <thead>
@@ -550,16 +552,16 @@ async function downloadShiftPDF(today, autoLogout = false) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <div style="margin-top:60px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:50px;">
-        <div style="text-align:center;">
+      <div style="margin-top:60px;display:flex;justify-content:space-between;gap:40px;">
+        <div style="flex:1;text-align:center;">
           <div style="height:50px;margin-bottom:10px;"></div>
           <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">STAFF: ${currentUser.name.toUpperCase()}</div>
         </div>
-        <div style="text-align:center;">
+        <div style="flex:1;text-align:center;">
           <div style="height:50px;margin-bottom:10px;"></div>
           <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">SUPERVISOR SIGNATURE</div>
         </div>
-        <div style="text-align:center;">
+        <div style="flex:1;text-align:center;">
           <div style="height:50px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:24pt;opacity:0.1;"><i class="fa-solid fa-stamp"></i></div>
           <div style="border-top:2px solid #111;padding-top:10px;font-weight:800;font-size:9pt;">OFFICIAL STAMP & DATE</div>
         </div>
@@ -1872,7 +1874,7 @@ function renderAuditLogsView() {
           `<span class="text-slate-600">${oldVal}</span> → <span class="text-amber-400">${newVal}</span>`}
                     </div>
                   </td>
-                  <td class="mono text-[10px] text-slate-600">${log.ip_address || '—'}</td>
+                  <td class="mono text-[10px] text-slate-600">${log.ip_address || '— '}</td>
                 </tr>`;
   }).join('') || '<tr><td colspan="6" class="text-center text-slate-500 py-12">No system logs available yet.</td></tr>'}
           </tbody>
@@ -2081,20 +2083,20 @@ function generateAuditReportHTML(rows, title = "AUDIT REPORT") {
 
       <div style="padding: 30px;">
         <!-- Summary Dashboard -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px;">
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; gap: 15px; margin-bottom: 30px;">
+          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 8px;">
             <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Records</div>
             <div style="font-size: 20px; font-weight: 800; color: #1e293b;">${rows.length}</div>
           </div>
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 15px; border-radius: 8px;">
+          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #10b981; padding: 15px; border-radius: 8px;">
             <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Received</div>
             <div style="font-size: 20px; font-weight: 800; color: #1e293b;">${totals.received}</div>
           </div>
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px;">
+          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px;">
             <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Total Damaged</div>
             <div style="font-size: 20px; font-weight: 800; color: #ef4444;">${totals.damaged}</div>
           </div>
-          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #6366f1; padding: 15px; border-radius: 8px;">
+          <div style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #6366f1; padding: 15px; border-radius: 8px;">
             <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;">Net Variance</div>
             <div style="font-size: 20px; font-weight: 800; color: ${totals.variance < 0 ? '#ef4444' : '#10b981'};">${totals.variance}</div>
           </div>
@@ -2149,20 +2151,20 @@ function generateAuditReportHTML(rows, title = "AUDIT REPORT") {
         </table>
 
         <!-- Validation Section -->
-        <div style="margin-top: 50px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; border-top: 2px solid #f1f5f9; padding-top: 25px;">
-          <div>
+        <div style="margin-top: 50px; display: flex; justify-content: space-between; gap: 40px; border-top: 2px solid #f1f5f9; padding-top: 25px;">
+          <div style="flex: 1;">
             <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Report Certified By</div>
             <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
             <div style="font-size: 11px; font-weight: 700; color: #1e293b;">${currentUser.name}</div>
             <div style="font-size: 9px; color: #64748b;">System Administrator</div>
           </div>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Verified By Supervisor</div>
             <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
             <div style="font-size: 11px; font-weight: 700; color: #1e293b;">Signature Required</div>
             <div style="font-size: 9px; color: #64748b;">Department Head</div>
           </div>
-          <div>
+          <div style="flex: 1;">
             <div style="font-size: 9px; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 40px;">Official Authorization</div>
             <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 8px;"></div>
             <div style="font-size: 11px; font-weight: 700; color: #1e293b;">${new Date().toLocaleDateString('en-GB')}</div>
