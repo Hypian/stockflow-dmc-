@@ -445,6 +445,28 @@ function generateShiftReport(type, context = 'normal') {
 }
 
 async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape') {
+  // Sleek overlay to cover the UI so the snapshot container never flashes on screen
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(15, 23, 42, 0.85)';
+  overlay.style.backdropFilter = 'blur(4px)';
+  overlay.style.color = '#ffffff';
+  overlay.style.display = 'flex';
+  overlay.style.flexDirection = 'column';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.zIndex = '1000000';
+  overlay.style.fontFamily = "'Sora', system-ui, -apple-system, sans-serif";
+  overlay.innerHTML = `
+    <div style="background:#1e293b;padding:24px 36px;border-radius:16px;border:1px solid #334155;text-align:center;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
+      <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px;color:#38bdf8;margin-bottom:12px;"></i>
+      <div style="font-size:16px;font-weight:700;color:#f8fafc;">Preparing PDF Document...</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Compiling report and opening document preview...</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.left = '0';
@@ -466,7 +488,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   document.body.appendChild(container);
 
   // Allow DOM & images to settle
-  await new Promise(resolve => setTimeout(resolve, 350));
+  await new Promise(resolve => setTimeout(resolve, 400));
 
   const opt = {
     margin: [8, 8, 8, 8],
@@ -487,13 +509,25 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   };
 
   try {
+    // Generate PDF and save file to Downloads
     await html2pdf().set(opt).from(container).save();
+
+    // Also generate Blob URL to open document directly in a new tab for instant viewing
+    try {
+      const pdfBlobUrl = await html2pdf().set(opt).from(container).output('bloburl');
+      if (pdfBlobUrl) {
+        window.open(pdfBlobUrl, '_blank');
+      }
+    } catch (blobErr) {
+      console.warn('Could not open PDF in new tab preview:', blobErr);
+    }
     return true;
   } catch (err) {
     console.error('PDF export failed:', err);
     throw err;
   } finally {
     container.remove();
+    overlay.remove();
   }
 }
 
