@@ -468,13 +468,16 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   `;
   document.body.appendChild(overlay);
 
+  // Set target width to match A4 page printable width (1040px for landscape, 740px for portrait)
+  const targetWidth = orientation === 'portrait' ? '740px' : '1040px';
+
   // Use an isolated offscreen iframe so html2canvas captures in a clean HTML document context without parent CSS or overlay interference
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.left = '-9999px';
   iframe.style.top = '-9999px';
-  iframe.style.width = orientation === 'portrait' ? '794px' : '1123px';
-  iframe.style.height = '1200px';
+  iframe.style.width = targetWidth;
+  iframe.style.height = '1400px';
   iframe.style.border = '0';
   document.body.appendChild(iframe);
 
@@ -487,11 +490,11 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
         <meta charset="utf-8">
         <style>
           * { box-sizing: border-box; }
-          body { margin: 0; padding: 0; background: #ffffff !important; color: #0f172a !important; font-family: 'Sora', 'Inter', system-ui, -apple-system, sans-serif; width: ${orientation === 'portrait' ? '794px' : '1123px'}; }
+          html, body { margin: 0; padding: 0; background: #ffffff !important; color: #0f172a !important; font-family: 'Sora', 'Inter', system-ui, -apple-system, sans-serif; width: ${targetWidth}; }
           .print-only { display: block !important; }
         </style>
       </head>
-      <body>
+      <body style="width: ${targetWidth}; margin: 0 auto; padding: 0;">
         ${htmlContent}
       </body>
     </html>
@@ -502,7 +505,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const opt = {
-    margin: [8, 8, 8, 8],
+    margin: [5, 5, 5, 5],
     filename: filename,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: {
@@ -512,8 +515,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
       allowTaint: true,
       logging: false,
       scrollX: 0,
-      scrollY: 0,
-      windowWidth: orientation === 'portrait' ? 794 : 1123
+      scrollY: 0
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
   };
@@ -2772,41 +2774,41 @@ async function downloadPDF(type, data, summary, start, end) {
   const orientation = def.orientation || 'landscape';
   
   let html = `
-    <div style="font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #0f172a; padding: 22px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #f59e0b;padding-bottom:20px;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:20px;">
-          <div style="background:#fff;padding:8px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.1);border:1px solid #e2e8f0;">
-            <img src="${DMC_LOGO_BASE64}" style="height:45px;width:auto;">
+    <div style="font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #0f172a; padding: 16px; width: 100%; box-sizing: border-box; background: #ffffff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #f59e0b;padding-bottom:16px;margin-bottom:20px;width:100%;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="background:#fff;padding:6px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.1);border:1px solid #e2e8f0;">
+            <img src="${DMC_LOGO_BASE64}" style="height:42px;width:auto;">
           </div>
           <div>
-            <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#64748b;font-weight:800;">StockFlow Analytics Report</div>
-            <h1 style="font-size:22px;font-weight:900;margin:4px 0 0 0;color:#0f172a;line-height:1.1;">${title}</h1>
-            <div style="font-size:12px;color:#475569;margin-top:6px;">
+            <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#64748b;font-weight:800;">StockFlow Analytics Report</div>
+            <h1 style="font-size:20px;font-weight:900;margin:3px 0 0 0;color:#0f172a;line-height:1.1;">${title}</h1>
+            <div style="font-size:11px;color:#475569;margin-top:4px;">
               <span style="font-weight:800;color:#0f172a;">Period:</span> ${periodText}
               ${def.metaLine ? ` &bull; <span style="font-weight:800;color:#0f172a;">${def.metaLine.label}:</span> ${def.metaLine.value()}` : ''}
             </div>
           </div>
         </div>
         <div style="text-align: right;">
-          <div style="font-size:11px;color:#64748b;margin:0;"><span style="font-weight:800;color:#0f172a;">Generated:</span> ${generatedAt}</div>
-          <div style="font-size:11px;color:#64748b;margin:3px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Prepared by:</span> ${currentUser?.name || 'Admin'}</div>
-          <div style="font-size:11px;color:#64748b;margin:3px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Document ID:</span> SF-${Date.now().toString().slice(-8)}</div>
+          <div style="font-size:10px;color:#64748b;margin:0;"><span style="font-weight:800;color:#0f172a;">Generated:</span> ${generatedAt}</div>
+          <div style="font-size:10px;color:#64748b;margin:2px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Prepared by:</span> ${currentUser?.name || 'Admin'}</div>
+          <div style="font-size:10px;color:#64748b;margin:2px 0 0 0;"><span style="font-weight:800;color:#0f172a;">Document ID:</span> SF-${Date.now().toString().slice(-8)}</div>
         </div>
       </div>
 
       ${computed.cards?.length ? `
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin: 10px 0 16px 0;">
+        <div style="display:flex;justify-content:space-between;gap:12px;margin: 10px 0 16px 0;width:100%;">
           ${computed.cards.map(c => `
-            <div style="flex:1;min-width:170px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.3px;color:#64748b;font-weight:900;margin:0 0 6px 0;">${c.label}</div>
-              <div style="font-size:18px;font-weight:900;color:#0f172a;margin:0;line-height:1.1;">${c.value}</div>
-              ${c.sub ? `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">${c.sub}</div>` : ''}
+            <div style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;box-sizing:border-box;">
+              <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:#64748b;font-weight:900;margin:0 0 4px 0;">${c.label}</div>
+              <div style="font-size:16px;font-weight:900;color:#0f172a;margin:0;line-height:1.1;">${c.value}</div>
+              ${c.sub ? `<div style="font-size:9px;color:#94a3b8;margin-top:3px;">${c.sub}</div>` : ''}
             </div>
           `).join('')}
         </div>
       ` : ''}
 
-      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;box-sizing:border-box;">
         <thead>
           <tr style="background:#0f172a;">
             ${columns.map(c => `<th style="padding:9px 10px;text-align:left;border:1px solid #0b1220;font-size:10px;text-transform:uppercase;letter-spacing:1.1px;color:#e2e8f0;">${c.label}</th>`).join('')}
