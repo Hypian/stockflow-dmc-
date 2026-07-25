@@ -20,7 +20,7 @@ const API_BASE_URL = (() => {
 
   return isLocalhost ? 'http://localhost:5000/api' : 'https://stockflow-dmc.onrender.com/api';
 })();
-const API_TIMEOUT_MS = 12000;
+const API_TIMEOUT_MS = 45000;
 
 const API = {
   // Get token helper

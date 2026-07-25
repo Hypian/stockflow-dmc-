@@ -182,8 +182,12 @@ app.listen(PORT, async () => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_entries_sorting ON entries (product_id, entry_date DESC, entry_time DESC, created_at DESC)');
     console.log('Database indexes verification complete.');
 
-    // Auto-restore database from audit logs
-    await restoreFromAuditLogs(pool);
+    // Auto-restore database from audit logs (Opt-in only via AUTO_RESTORE=true)
+    if (process.env.AUTO_RESTORE === 'true') {
+      await restoreFromAuditLogs(pool);
+    } else {
+      console.log('Database auto-restore bypassed (set AUTO_RESTORE=true to enable).');
+    }
   } catch (err) {
     console.error('Migration/Restoration failed:', err.message);
   }

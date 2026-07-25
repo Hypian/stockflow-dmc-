@@ -56,26 +56,24 @@ const createEntry = async (req, res) => {
     let finalOpening = opening;
     let finalVariance = variance;
 
-    // ── USER-SPECIFIC HANDOVER (John ← David) ──
-    // Rule: On John's account, opening should auto-follow David's last recorded closing
-    // for the same product and working date (if available).
-    if ((req.user?.username || '').toLowerCase() === 'john') {
-      const davidRef = await query(
-        `
-          SELECT e.closing
-          FROM entries e
-          JOIN users u ON e.user_id = u.id
-          WHERE u.username = $1
-            AND e.product_id = $2
-            AND e.entry_date = $3
-          ORDER BY e.entry_time DESC NULLS LAST, e.created_at DESC
-          LIMIT 1
-        `,
-        ['binama', product_id, entry_date]
-      );
+    // ── GENERIC SHIFT HANDOVER ──
+    // Auto-link opening stock to the latest recorded closing stock for the same product and date (across all users)
+    const priorRef = await query(
+      `
+        SELECT closing
+        FROM entries
+        WHERE product_id = $1
+          AND entry_date = $2
+          AND user_id != $3
+        ORDER BY entry_time DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      `,
+      [product_id, entry_date, req.user.id]
+    );
 
-      if (davidRef.rows.length > 0 && davidRef.rows[0].closing !== null && davidRef.rows[0].closing !== undefined) {
-        finalOpening = Number(davidRef.rows[0].closing);
+    if (priorRef.rows.length > 0 && priorRef.rows[0].closing !== null && priorRef.rows[0].closing !== undefined) {
+      if (opening === undefined || opening === null) {
+        finalOpening = Number(priorRef.rows[0].closing);
         const expected = finalOpening + Number(received || 0) - Number(damaged || 0) - Number(disbursed || 0);
         finalVariance = Number(closing || 0) - expected;
       }

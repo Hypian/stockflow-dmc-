@@ -18,20 +18,25 @@ function buildPoolConfig() {
     ssl: process.env.DB_SSL === 'require' ? { rejectUnauthorized: false } : false
   };
 
+  const placeholders = ['your_db_user', 'your_db_password', 'your_db_host', 'your_db_name', 'username', 'password', 'host', 'database'];
+
   if (rawUrl) {
-    try {
-      // Validate URL before passing to pg
-      new URL(rawUrl);
-      return {
-        connectionString: rawUrl,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-      };
-    } catch (err) {
-      console.warn('Invalid DATABASE_URL detected. Falling back to individual DB_* environment variables.');
+    const hasUrlPlaceholder = placeholders.some(ph => rawUrl.toLowerCase().includes(ph));
+    if (hasUrlPlaceholder) {
+      console.warn('DATABASE_URL contains placeholder values. Falling back to individual DB_* environment variables.');
+    } else {
+      try {
+        // Validate URL before passing to pg
+        new URL(rawUrl);
+        return {
+          connectionString: rawUrl,
+          ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        };
+      } catch (err) {
+        console.warn('Invalid DATABASE_URL detected. Falling back to individual DB_* environment variables.');
+      }
     }
   }
-
-  const placeholders = ['your_db_user', 'your_db_password', 'your_db_host', 'your_db_name', 'username', 'password', 'host', 'database'];
   const hasPlaceholder = [localConfig.user, localConfig.password, localConfig.host, localConfig.database]
     .some(value => !value || placeholders.includes(String(value).toLowerCase()));
 
