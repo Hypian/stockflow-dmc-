@@ -444,7 +444,58 @@ function generateShiftReport(type, context = 'normal') {
   }
 }
 
-function downloadShiftPDF(today, autoLogout = false) {
+async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape') {
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '0';
+  container.style.top = '0';
+  container.style.width = orientation === 'portrait' ? '794px' : '1123px';
+  container.style.background = '#ffffff';
+  container.style.opacity = '1';
+  container.style.visibility = 'visible';
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '-99999';
+  container.innerHTML = htmlContent;
+
+  // Force any .print-only elements to be visible inside snapshot container
+  const printOnlyElements = container.querySelectorAll('.print-only');
+  printOnlyElements.forEach(el => {
+    el.style.display = 'block';
+  });
+
+  document.body.appendChild(container);
+
+  // Allow DOM & images to settle
+  await new Promise(resolve => setTimeout(resolve, 350));
+
+  const opt = {
+    margin: [8, 8, 8, 8],
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      allowTaint: true,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: orientation === 'portrait' ? 794 : 1123
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
+  };
+
+  try {
+    await html2pdf().set(opt).from(container).save();
+    return true;
+  } catch (err) {
+    console.error('PDF export failed:', err);
+    throw err;
+  } finally {
+    container.remove();
+  }
+}
+
+async function downloadShiftPDF(today, autoLogout = false) {
   const now = new Date();
   const rows = today.map(e => `
     <tr>
@@ -460,11 +511,8 @@ function downloadShiftPDF(today, autoLogout = false) {
       <td style="padding:10px;border:1px solid #ddd;text-align:center;text-transform:capitalize;">${e.shift}</td>
     </tr>`).join('');
 
-  const content = document.createElement('div');
-  content.style.background = '#fff';
-  content.style.padding = '20px';
-  content.innerHTML = `
-    <div class="print-section" style="font-family:'Sora',Arial,sans-serif; max-width:1000px; margin:0 auto; color:#111;">
+  const html = `
+    <div style="background:#fff;padding:20px;font-family:'Sora',Arial,sans-serif;max-width:1000px;margin:0 auto;color:#111;">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #111;padding-bottom:20px;margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:20px;">
           <div style="background:#fff;padding:8px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.1);border:1px solid #e2e8f0;">
@@ -523,24 +571,18 @@ function downloadShiftPDF(today, autoLogout = false) {
     </div>`;
 
   showToast('Generating PDF...', 'info', 3000);
+  const filename = `StockFlow_Shift_Report_${currentUser.name.replace(/\s+/g, '_')}_${getWorkingDate()}.pdf`;
 
-  const opt = {
-    margin: [10, 10, 10, 10],
-    filename: `StockFlow_Shift_Report_${currentUser.name.replace(/\s+/g, '_')}_${getWorkingDate()}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-  };
-
-  html2pdf().set(opt).from(content).save().then(() => {
+  try {
+    await exportHTMLToPDF(html, filename, 'landscape');
     showToast('PDF downloaded successfully!', 'success');
     if (autoLogout) {
       setTimeout(() => doLogout(), 1000);
     }
-  }).catch(err => {
+  } catch (err) {
     console.error('PDF generation failed:', err);
     showToast('PDF generation failed. Fall back to Print Report.', 'error');
-  });
+  }
 }
 
 function printShiftReport(today) {
@@ -2145,31 +2187,22 @@ function printAuditReport() {
   window.print();
 }
 
-function downloadAuditPDF() {
+async function downloadAuditPDF() {
   const rows = getAuditFiltered().sort((a, b) => b.date.localeCompare(a.date));
   if (!rows.length) { showToast('No data to download', 'warn'); return; }
 
-  // Show loading toast
   showToast('Generating Premium PDF…', 'info', 5000);
 
-  const container = document.createElement('div');
-  container.innerHTML = generateAuditReportHTML(rows, "SECURE AUDIT DOCUMENT");
-  const content = container.firstElementChild;
+  const html = generateAuditReportHTML(rows, "SECURE AUDIT DOCUMENT");
+  const filename = getAuditFilename('pdf');
 
-  const opt = {
-    margin: [10, 10, 10, 10],
-    filename: getAuditFilename('pdf'),
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-  };
-
-  html2pdf().set(opt).from(content).save().then(() => {
+  try {
+    await exportHTMLToPDF(html, filename, 'landscape');
     showToast('PDF downloaded successfully!', 'success');
-  }).catch(err => {
+  } catch (err) {
     console.error('PDF generation failed:', err);
     showToast('PDF generation failed. Try Print Report instead.', 'error');
-  });
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2754,41 +2787,16 @@ async function downloadPDF(type, data, summary, start, end) {
     </div>
   `;
 
-  // NOTE: #print-area is hidden by default (print-only). html2pdf/html2canvas will render blanks
-  // if the source element is display:none. So we render into a temporary offscreen container.
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-10000px';
-  container.style.top = '0';
-  container.style.width = orientation === 'portrait' ? '794px' : '1123px'; // approx A4 px at 96dpi
-  container.style.background = '#ffffff';
-  container.style.opacity = '1';
-  container.style.pointerEvents = 'none';
-  container.style.zIndex = '-1';
-  container.style.transform = 'scale(0.98)';
-  container.style.transformOrigin = 'top left';
-  container.innerHTML = html;
-  document.body.appendChild(container);
-  
-  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-
-  const opt = {
-    margin: 0,
-    filename: `${(def.filenamePrefix || 'StockFlow_Analytics')}_${title}_${start || 'all'}_to_${end || 'present'}.pdf`
-      .replace(/\s+/g, '_')
-      .replace(/[^\w\-\.]/g, ''),
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, allowTaint: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation }
-  };
+  const filename = `${(def.filenamePrefix || 'StockFlow_Analytics')}_${title}_${start || 'all'}_to_${end || 'present'}.pdf`
+    .replace(/\s+/g, '_')
+    .replace(/[^\w\-\.]/g, '');
 
   try {
-    await html2pdf().set(opt).from(container).save();
+    await exportHTMLToPDF(html, filename, orientation);
+    showToast('PDF downloaded successfully!', 'success');
   } catch (err) {
     console.error('PDF generation failed:', err);
     showToast('PDF generation failed. Try again or use CSV.', 'error');
-  } finally {
-    container.remove();
   }
 }
 
