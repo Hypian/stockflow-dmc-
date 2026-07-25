@@ -447,6 +447,7 @@ function generateShiftReport(type, context = 'normal') {
 async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape') {
   // Sleek overlay to cover the UI so the snapshot container never flashes on screen
   const overlay = document.createElement('div');
+  overlay.id = 'pdf-loading-overlay';
   overlay.style.position = 'fixed';
   overlay.style.inset = '0';
   overlay.style.background = 'rgba(15, 23, 42, 0.85)';
@@ -461,34 +462,45 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
   overlay.innerHTML = `
     <div style="background:#1e293b;padding:24px 36px;border-radius:16px;border:1px solid #334155;text-align:center;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
       <i class="fa-solid fa-circle-notch fa-spin" style="font-size:32px;color:#38bdf8;margin-bottom:12px;"></i>
-      <div style="font-size:16px;font-weight:700;color:#f8fafc;">Preparing PDF Document...</div>
+      <div style="font-size:16px;font-weight:700;color:#f8fafc;">Generating PDF Document...</div>
       <div style="font-size:12px;color:#94a3b8;margin-top:4px;">Compiling report and opening document preview...</div>
     </div>
   `;
   document.body.appendChild(overlay);
 
+  // Snapshot container must be absolute (html2canvas fails on position:fixed)
   const container = document.createElement('div');
-  container.style.position = 'fixed';
+  container.style.position = 'absolute';
   container.style.left = '0';
   container.style.top = '0';
   container.style.width = orientation === 'portrait' ? '794px' : '1123px';
   container.style.background = '#ffffff';
-  container.style.opacity = '1';
+  container.style.color = '#000000';
+  container.style.display = 'block';
   container.style.visibility = 'visible';
-  container.style.pointerEvents = 'none';
+  container.style.opacity = '1';
   container.style.zIndex = '999999';
+  container.style.boxSizing = 'border-box';
   container.innerHTML = htmlContent;
 
-  // Force any .print-only elements to be visible inside snapshot container
-  const printOnlyElements = container.querySelectorAll('.print-only');
-  printOnlyElements.forEach(el => {
-    el.style.display = 'block';
+  // Force all child elements and print-only elements to be visible inside container
+  const childElements = container.querySelectorAll('*');
+  childElements.forEach(el => {
+    if (el.classList.contains('print-only') || window.getComputedStyle(el).display === 'none') {
+      el.style.display = 'block';
+    }
+    el.style.visibility = 'visible';
   });
 
   document.body.appendChild(container);
 
+  // Temporarily scroll to top so html2canvas captures from top-left without scroll clipping
+  const prevScrollX = window.scrollX;
+  const prevScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
   // Allow DOM & images to settle
-  await new Promise(resolve => setTimeout(resolve, 400));
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   const opt = {
     margin: [8, 8, 8, 8],
@@ -499,10 +511,9 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
       backgroundColor: '#ffffff',
       useCORS: true,
       allowTaint: true,
+      logging: false,
       scrollX: 0,
       scrollY: 0,
-      x: 0,
-      y: 0,
       windowWidth: orientation === 'portrait' ? 794 : 1123
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: orientation }
@@ -512,7 +523,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
     // Generate PDF and save file to Downloads
     await html2pdf().set(opt).from(container).save();
 
-    // Also generate Blob URL to open document directly in a new tab for instant viewing
+    // Generate Blob URL to open document directly in a new tab for instant viewing
     try {
       const pdfBlobUrl = await html2pdf().set(opt).from(container).output('bloburl');
       if (pdfBlobUrl) {
@@ -526,6 +537,7 @@ async function exportHTMLToPDF(htmlContent, filename, orientation = 'landscape')
     console.error('PDF export failed:', err);
     throw err;
   } finally {
+    window.scrollTo(prevScrollX, prevScrollY);
     container.remove();
     overlay.remove();
   }
