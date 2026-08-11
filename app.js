@@ -2930,36 +2930,40 @@ function getAnalyticsReportDefinitions() {
       columns: [
         { key: 'product_name', label: 'Product' },
         { key: 'unit_price', label: 'Unit Price (RWF)', align: 'right' },
+        { key: 'opening_stock', label: 'Opening Stock (Qty)', align: 'right' },
+        { key: 'opening_value', label: 'Opening Value (RWF)', align: 'right' },
         { key: 'total_in', label: 'Received (Qty)', align: 'right' },
         { key: 'received_value', label: 'Received Value (RWF)', align: 'right' },
         { key: 'total_out', label: 'Exited (Qty)', align: 'right' },
         { key: 'stock_out_value', label: 'Stock Out Value (RWF)', align: 'right' },
         { key: 'total_damaged', label: 'Damaged (Qty)', align: 'right' },
         { key: 'damaged_value', label: 'Damaged Loss (RWF)', align: 'right' },
-        { key: 'current_stock', label: 'Current Stock', align: 'right' },
-        { key: 'current_value', label: 'Current Value (RWF)', align: 'right' }
+        { key: 'current_stock', label: 'Ending Stock (Period)', align: 'right' },
+        { key: 'current_value', label: 'Ending Value (RWF)', align: 'right' }
       ],
-      value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
+      value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
       formatValue: (v, key) => {
         if (key === 'product_name') {
           return v === null || v === undefined || v === '' ? '—' : String(v);
         }
-        if (['unit_price', 'received_value', 'stock_out_value', 'damaged_value', 'current_value'].includes(key)) {
+        if (['unit_price', 'opening_value', 'received_value', 'stock_out_value', 'damaged_value', 'current_value'].includes(key)) {
           return Number(v || 0).toLocaleString();
         }
         return v === null || v === undefined || v === '' ? '0' : Number(v || 0).toLocaleString();
       },
-      computeSummary: (data) => {
-        const totalIn = data.reduce((s, r) => s + num(r.received_value), 0);
-        const totalOut = data.reduce((s, r) => s + num(r.stock_out_value), 0);
-        const totalDamaged = data.reduce((s, r) => s + num(r.damaged_value), 0);
-        const totalCurrent = data.reduce((s, r) => s + num(r.current_value), 0);
+      computeSummary: (data, summary) => {
+        const totalOpening = summary?.totalOpeningValue ?? data.reduce((s, r) => s + num(r.opening_value), 0);
+        const totalIn = summary?.totalReceivedValue ?? data.reduce((s, r) => s + num(r.received_value), 0);
+        const totalOut = summary?.totalStockOutValue ?? data.reduce((s, r) => s + num(r.stock_out_value), 0);
+        const totalDamaged = summary?.totalDamagedValue ?? data.reduce((s, r) => s + num(r.damaged_value), 0);
+        const totalCurrent = summary?.totalCurrentValue ?? data.reduce((s, r) => s + num(r.current_value), 0);
         return {
           cards: [
+            { label: 'Total Opening Valuation', value: totalOpening.toLocaleString() + ' RWF' },
             { label: 'Total Received Value', value: totalIn.toLocaleString() + ' RWF' },
             { label: 'Total Exited Value', value: totalOut.toLocaleString() + ' RWF' },
             { label: 'Total Damaged Loss', value: totalDamaged.toLocaleString() + ' RWF' },
-            { label: 'Total Current Valuation', value: totalCurrent.toLocaleString() + ' RWF' }
+            { label: 'Total Period Valuation', value: totalCurrent.toLocaleString() + ' RWF' }
           ]
         };
       }
