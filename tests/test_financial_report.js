@@ -33,7 +33,7 @@ function compareEntriesDesc(a, b) {
   return timeB - timeA;
 }
 
-// Simulate the data computation performed in getFinancialReport
+// Simulate the exact SQL logic from reportController.js
 function computeFinancialData(products, rawEntries, startDate, endDate) {
   const sorted = [...rawEntries].sort(compareEntriesDesc);
 
@@ -68,13 +68,15 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
       return true;
     });
 
+    const derivedOpening = Math.max(periodStock - totalIn + totalOut + totalDamaged, 0);
+
     let openingStock = 0;
     if (startDate && priorEntries.length > 0) {
       openingStock = Number(priorEntries[0].closing || 0);
-    } else if (inPeriod.length > 0) {
+    } else if (inPeriod.length > 0 && Number(inPeriod[inPeriod.length - 1].opening || 0) > 0) {
       openingStock = Number(inPeriod[inPeriod.length - 1].opening || 0);
     } else {
-      openingStock = Math.max(periodStock - totalIn + totalOut + totalDamaged, 0);
+      openingStock = derivedOpening;
     }
 
     const unitPrice = Number(p.unitPrice || 0);
@@ -96,6 +98,7 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
 
   const summary = {
     totalOpeningValue: result.reduce((s, r) => s + r.opening_value, 0),
+    totalPeriodValue: result.reduce((s, r) => s + r.current_value, 0),
     totalCurrentValue: result.reduce((s, r) => s + r.current_value, 0),
     totalStockOutValue: result.reduce((s, r) => s + r.stock_out_value, 0),
     totalReceivedValue: result.reduce((s, r) => s + r.received_value, 0),
@@ -107,27 +110,38 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
 
 // Sample Data
 const products = [
-  { id: 1, name: 'Bread(burger)', unitPrice: 1000, active: true }
+  { id: 1, name: 'Bread(burger)', unitPrice: 1000, active: true },
+  { id: 2, name: 'Aluminium foil', unitPrice: 15000, active: true }
 ];
 
 const entries = [
   { id: 4, productId: 1, date: '2026-08-11', time: '17:03:39', shift: 'morning', opening: 3, received: 0, disbursed: 1, damaged: 0, closing: 2 },
   { id: 3, productId: 1, date: '2026-08-10', time: '16:54:54', shift: 'morning', opening: 1, received: 0, disbursed: 1, damaged: 0, closing: 0 },
   { id: 2, productId: 1, date: '2026-08-10', time: '07:56:44', shift: 'night', opening: 0, received: 4, disbursed: 0, damaged: 0, closing: 4 },
-  { id: 1, productId: 1, date: '2026-08-09', time: '11:21:38', shift: 'morning', opening: 1, received: 0, disbursed: 0, damaged: 0, closing: 1 }
+  { id: 1, productId: 1, date: '2026-08-09', time: '11:21:38', shift: 'morning', opening: 1, received: 0, disbursed: 0, damaged: 0, closing: 1 },
+  // Aluminium foil: exited 2, ending stock 7, opening was 0 in entry record
+  { id: 5, productId: 2, date: '2026-08-05', time: '14:00:00', shift: 'morning', opening: 0, received: 0, disbursed: 2, damaged: 0, closing: 7 }
 ];
 
 // Test 1: Historical period (2026-08-09 to 2026-08-10)
 const rep1 = computeFinancialData(products, entries, '2026-08-09', '2026-08-10');
-console.log('Period 2026-08-09 to 2026-08-10:');
-console.log(rep1.data[0]);
-
-// Assertions for Test 1:
-// On Aug 10 end of night shift, closing stock was 4 (Binama David's night shift).
-// Stock pulled for period 2026-08-09 to 2026-08-10 must be 4 (of then), NOT 2 (today Aug 11).
 assert.strictEqual(rep1.data[0].current_stock, 4);
 assert.strictEqual(rep1.data[0].current_value, 4000);
 assert.strictEqual(rep1.data[0].opening_stock, 1);
 assert.strictEqual(rep1.data[0].opening_value, 1000);
+
+// Test 2: Aluminium foil from user screenshot (2026-08-01 to 2026-08-11)
+const rep2 = computeFinancialData(products, entries, '2026-08-01', '2026-08-11');
+const alumFoil = rep2.data.find(p => p.product_name === 'Aluminium foil');
+console.log('Aluminium foil test output:');
+console.log(alumFoil);
+console.log('Report Summary Output:');
+console.log(rep2.summary);
+
+// Assertions for Aluminium foil:
+assert.strictEqual(alumFoil.current_stock, 7);
+assert.strictEqual(alumFoil.current_value, 105000);
+assert.strictEqual(alumFoil.opening_stock, 9);
+assert.strictEqual(alumFoil.opening_value, 135000);
 
 console.log('\nAll Financial Report test assertions passed successfully!');

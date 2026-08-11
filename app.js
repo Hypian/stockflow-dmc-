@@ -2956,14 +2956,14 @@ function getAnalyticsReportDefinitions() {
         const totalIn = summary?.totalReceivedValue ?? data.reduce((s, r) => s + num(r.received_value), 0);
         const totalOut = summary?.totalStockOutValue ?? data.reduce((s, r) => s + num(r.stock_out_value), 0);
         const totalDamaged = summary?.totalDamagedValue ?? data.reduce((s, r) => s + num(r.damaged_value), 0);
-        const totalCurrent = summary?.totalCurrentValue ?? data.reduce((s, r) => s + num(r.current_value), 0);
+        const totalPeriod = summary?.totalPeriodValue ?? summary?.totalCurrentValue ?? data.reduce((s, r) => s + num(r.current_value), 0);
         return {
           cards: [
             { label: 'Total Opening Valuation', value: totalOpening.toLocaleString() + ' RWF' },
             { label: 'Total Received Value', value: totalIn.toLocaleString() + ' RWF' },
             { label: 'Total Exited Value', value: totalOut.toLocaleString() + ' RWF' },
             { label: 'Total Damaged Loss', value: totalDamaged.toLocaleString() + ' RWF' },
-            { label: 'Total Period Valuation', value: totalCurrent.toLocaleString() + ' RWF' }
+            { label: 'Total Ending Valuation (Then)', value: totalPeriod.toLocaleString() + ' RWF' }
           ]
         };
       }

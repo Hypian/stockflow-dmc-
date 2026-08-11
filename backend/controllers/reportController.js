@@ -311,8 +311,8 @@ const getFinancialReport = async (req, res) => {
                 COALESCE(a.total_out, 0) * COALESCE(p.unit_price, 0) as stock_out_value,
                 COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value,
                 COALESCE(a.total_damaged, 0) * COALESCE(p.unit_price, 0) as damaged_value,
-                GREATEST(COALESCE(pc.prior_closing, eip.period_opening, COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0)), 0) as opening_stock,
-                GREATEST(COALESCE(pc.prior_closing, eip.period_opening, COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0)), 0) * COALESCE(p.unit_price, 0) as opening_value
+                COALESCE(pc.prior_closing, NULLIF(eip.period_opening, 0), GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) as opening_stock,
+                COALESCE(pc.prior_closing, NULLIF(eip.period_opening, 0), GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) * COALESCE(p.unit_price, 0) as opening_value
             FROM products p
             LEFT JOIN latest_in_period lip ON lip.product_id = p.id
             LEFT JOIN agg a ON a.product_id = p.id
@@ -341,6 +341,7 @@ const getFinancialReport = async (req, res) => {
 
         const summary = {
           totalOpeningValue: data.reduce((s, r) => s + r.opening_value, 0),
+          totalPeriodValue: data.reduce((s, r) => s + r.current_value, 0),
           totalCurrentValue: data.reduce((s, r) => s + r.current_value, 0),
           totalStockOutValue: data.reduce((s, r) => s + r.stock_out_value, 0),
           totalReceivedValue: data.reduce((s, r) => s + r.received_value, 0),
