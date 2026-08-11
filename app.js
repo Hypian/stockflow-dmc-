@@ -55,6 +55,44 @@ let db_products = [];
 let db_entries = [];
 let db_audit_logs = [];
 
+function getEntrySortKey(e) {
+  if (!e) return '';
+  const dateStr = e.date || e.entry_date || '';
+  const timeStr = e.time || e.entry_time || '00:00:00';
+  const shift = (e.shift || '').trim().toLowerCase();
+
+  const parts = timeStr.split(':');
+  let hours = parseInt(parts[0] || '0', 10);
+  let mins = parseInt(parts[1] || '0', 10);
+  let secs = parseInt(parts[2] || '0', 10);
+
+  // Shift rank for same date comparison:
+  // Morning shift (10:00-19:00) -> 1
+  // Night shift (19:00-10:00) -> 2
+  const shiftRank = shift === 'night' ? 2 : 1;
+
+  // In Night Shift (19:00 to 10:00), times 00:00..09:59 occur on the morning after 19:00..23:59.
+  // Adding 24 to hours < 10 ensures 07:56 (31:56) sorts AFTER 22:00 (22:00) within night shift.
+  let adjustedHours = hours;
+  if (shift === 'night' && hours < 10) {
+    adjustedHours += 24;
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dateStr}_${shiftRank}_${pad(adjustedHours)}:${pad(mins)}:${pad(secs)}`;
+}
+
+function compareEntriesDesc(a, b) {
+  const keyA = getEntrySortKey(a);
+  const keyB = getEntrySortKey(b);
+  if (keyA !== keyB) {
+    return keyB.localeCompare(keyA);
+  }
+  const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+  const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+  return timeB - timeA;
+}
+
 // ─â€â‚¬─â€â‚¬ AUTO-POLLING ─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬─â€â‚¬
 let currentPollingInterval = null;
 const POLL_INTERVAL = 60000; // 60 seconds
@@ -292,7 +330,7 @@ async function doLogin() {
     try {
       await migrateLegacyLocalStorage();
       db_products = await API.getProducts();
-      db_entries = await API.getEntries();
+      db_entries = (await API.getEntries()).sort(compareEntriesDesc);
     } catch (err) {
       console.error(err);
       // We continue even if empty, to not block login completely
@@ -413,7 +451,7 @@ function showReportOptions(context = 'normal') {
 }
 
 function generateShiftReport(type, context = 'normal') {
-  const entries = db_entries.filter(e => e.userId === currentUser.id && e.date === getWorkingDate());
+  const entries = db_entries.filter(e => e.userId === currentUser.id && e.date === getWorkingDate()).sort(compareEntriesDesc);
 
   if (entries.length === 0) {
     showToast('No entries recorded for today yet.', 'warn');
@@ -866,7 +904,7 @@ async function navigateTo(page, force = false) {
       const entriesChanged = JSON.stringify(entries) !== JSON.stringify(db_entries);
       const productsChanged = JSON.stringify(products) !== JSON.stringify(db_products);
       
-      db_entries = entries;
+      db_entries = (entries || []).sort(compareEntriesDesc);
       db_products = products;
       if (auditLogs) db_audit_logs = auditLogs;
 
@@ -920,15 +958,7 @@ function getLowStockHTML() {
     if (!pEntries || pEntries.length === 0) return;
 
     // Sort entries by date/time to find latest
-    const sortedEntries = [...pEntries].sort((a, b) => {
-      const aDate = new Date(`${a.date}T${a.time || '00:00:00'}`);
-      const bDate = new Date(`${b.date}T${b.time || '00:00:00'}`);
-      if (bDate.getTime() !== aDate.getTime()) return bDate.getTime() - aDate.getTime();
-
-      const aCreated = new Date(a.created_at || a.createdAt || 0).getTime();
-      const bCreated = new Date(b.created_at || b.createdAt || 0).getTime();
-      return bCreated - aCreated;
-    });
+    const sortedEntries = [...pEntries].sort(compareEntriesDesc);
 
     // Get latest entry with valid closing stock
     const latest = sortedEntries.find(e => e.closing !== null && e.closing !== undefined && Number(e.closing) > 0);
@@ -1310,7 +1340,7 @@ function renderAdminStockTable() {
     const filterShift = shift.trim().toLowerCase();
     if (filterShift && (e.shift || '').trim().toLowerCase() !== filterShift) return false;
     return true;
-  });
+  }).sort(compareEntriesDesc);
 
   const count = document.getElementById('as-count');
   if (count) count.textContent = `${rows.length} entries`;
@@ -1502,18 +1532,12 @@ function renderProductTable() {
   const productData = {};
   entries.forEach(e => {
     if (!productData[e.productId]) {
-      productData[e.productId] = { count: 0, latestClosing: null, latestDate: null, latestTime: null };
+      productData[e.productId] = { count: 0, latestEntry: null };
     }
     productData[e.productId].count++;
     
-    // Track latest entry by date and time
-    const entryDate = new Date(`${e.date}T${e.time || '00:00:00'}`);
-    const latestDate = productData[e.productId].latestDate ? new Date(`${productData[e.productId].latestDate}T${productData[e.productId].latestTime || '00:00:00'}`) : null;
-    
-    if (!latestDate || entryDate > latestDate) {
-      productData[e.productId].latestClosing = Number(e.closing || 0);
-      productData[e.productId].latestDate = e.date;
-      productData[e.productId].latestTime = e.time;
+    if (!productData[e.productId].latestEntry || compareEntriesDesc(e, productData[e.productId].latestEntry) < 0) {
+      productData[e.productId].latestEntry = e;
     }
   });
 
@@ -1521,8 +1545,8 @@ function renderProductTable() {
   const tbody = document.getElementById('prod-tbody');
   if (tbody) {
     tbody.innerHTML = products.map((p, i) => {
-      const data = productData[p.id] || { count: 0, latestClosing: 0 };
-      const currentStock = data.latestClosing || 0;
+      const data = productData[p.id] || { count: 0, latestEntry: null };
+      const currentStock = data.latestEntry ? Number(data.latestEntry.closing || 0) : 0;
       return `
       <tr>
         <td class="text-slate-500 mono text-xs">${i + 1}</td>
@@ -1545,8 +1569,8 @@ function renderProductTable() {
   const cardsContainer = document.getElementById('prod-cards');
   if (cardsContainer) {
     cardsContainer.innerHTML = products.map((p, i) => {
-      const data = productData[p.id] || { count: 0, latestClosing: 0 };
-      const currentStock = data.latestClosing || 0;
+      const data = productData[p.id] || { count: 0, latestEntry: null };
+      const currentStock = data.latestEntry ? Number(data.latestEntry.closing || 0) : 0;
       return `
       <div class="product-card" onclick="showProductStockModal('${p.id}')">
         <div class="product-card-info">
@@ -1577,11 +1601,7 @@ function showProductStockModal(productId) {
 
   const productEntries = db_entries.filter(e => String(e.productId) === String(productId));
   const latestEntry = productEntries.length > 0 
-    ? [...productEntries].sort((a, b) => {
-        const aDate = new Date(`${a.date}T${a.time || '00:00:00'}`);
-        const bDate = new Date(`${b.date}T${b.time || '00:00:00'}`);
-        return bDate.getTime() - aDate.getTime();
-      })[0]
+    ? [...productEntries].sort(compareEntriesDesc)[0]
     : null;
 
   const maxHistorical = productEntries.length > 0 ? Math.max(...productEntries.map(e => Number(e.closing || 0))) : 0;
@@ -1946,7 +1966,7 @@ function getAuditFiltered() {
     // Normalize shift value from DB (trim + lowercase) before comparing
     if (shift && (e.shift || '').trim().toLowerCase() !== shift) return false;
     return true;
-  });
+  }).sort(compareEntriesDesc);
 }
 
 function clearAuditFilters() {
@@ -2229,7 +2249,7 @@ function generateAuditReportHTML(rows, title = "AUDIT REPORT") {
 }
 
 function printAuditReport() {
-  const rows = getAuditFiltered().sort((a, b) => b.date.localeCompare(a.date));
+  const rows = getAuditFiltered().sort(compareEntriesDesc);
   if (!rows.length) { showToast('No data to print', 'warn'); return; }
   const area = document.getElementById('print-area');
   area.innerHTML = generateAuditReportHTML(rows, "OFFICIAL AUDIT REPORT");
@@ -2237,7 +2257,7 @@ function printAuditReport() {
 }
 
 async function downloadAuditPDF() {
-  const rows = getAuditFiltered().sort((a, b) => b.date.localeCompare(a.date));
+  const rows = getAuditFiltered().sort(compareEntriesDesc);
   if (!rows.length) { showToast('No data to download', 'warn'); return; }
 
   showToast('Generating Premium PDF…', 'info', 5000);
@@ -2303,7 +2323,7 @@ function renderAdminAnalytics() {
   const prodFinancials = activeProducts.map(p => {
     const pEntries = entriesByProduct[p.id] || [];
     const latestEntry = pEntries.length > 0
-      ? [...pEntries].sort((a, b) => new Date(`${b.date}T${b.time||'00:00'}`) - new Date(`${a.date}T${a.time||'00:00'}`))[0]
+      ? [...pEntries].sort(compareEntriesDesc)[0]
       : null;
     const currentStock = latestEntry ? Number(latestEntry.closing || 0) : 0;
     const stockOut = pEntries.reduce((s, e) => s + Number(e.disbursed || 0), 0);
@@ -3487,12 +3507,8 @@ function getUnifiedOpeningStock(productId) {
   const entries = db_entries.filter(e => String(e.productId) === String(productId));
   if (!entries.length) return null;
 
-  // Find the absolute latest entry for this product by date and time
-  const latestEntry = entries.sort((a, b) => {
-    const aDateTime = new Date(`${a.date}T${a.time || '00:00:00'}`);
-    const bDateTime = new Date(`${b.date}T${b.time || '00:00:00'}`);
-    return bDateTime - aDateTime;
-  })[0];
+  // Find the absolute latest entry for this product by shift & time
+  const latestEntry = [...entries].sort(compareEntriesDesc)[0];
 
   // Return the closing stock of the last entry as the opening for the new one
   return latestEntry ? Number(latestEntry.closing || 0) : null;
@@ -3505,10 +3521,7 @@ function getLatestEntryForProductByUserName(productId, userName) {
   );
   if (!entries.length) return null;
 
-  return entries.sort((a, b) => {
-    const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
-    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
-  })[0] || null;
+  return [...entries].sort(compareEntriesDesc)[0] || null;
 }
 
 function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate = null) {
@@ -3519,10 +3532,7 @@ function getLatestEntryForProduct(productId, excludeEntryId = null, beforeDate =
     entries = entries.filter(e => new Date(e.created_at || e.createdAt) < cutoff);
   }
 
-  return entries.sort((a, b) => {
-    const dateCmp = String(b.date || '').localeCompare(String(a.date || ''));
-    return dateCmp !== 0 ? dateCmp : String(b.time || '').localeCompare(String(a.time || ''));
-  })[0] || null;
+  return [...entries].sort(compareEntriesDesc)[0] || null;
 }
 
 function calcStock(source = '') {
@@ -3652,6 +3662,7 @@ async function saveEntry() {
       db_entries.push({ ...result, productName: product.name, unit: product.unit });
       showToast(`Entry saved for ${product.name}!`, 'success');
     }
+    db_entries.sort(compareEntriesDesc);
 
     clearForm();
 
@@ -3885,7 +3896,7 @@ async function initApp() {
       const dataChanged = JSON.stringify(freshEntries) !== JSON.stringify(db_entries) ||
                           JSON.stringify(freshProducts) !== JSON.stringify(db_products);
       db_products = freshProducts;
-      db_entries = freshEntries;
+      db_entries = (freshEntries || []).sort(compareEntriesDesc);
       if (dataChanged) {
         // Re-render current page silently to show fresh data
         refreshCurrentView();

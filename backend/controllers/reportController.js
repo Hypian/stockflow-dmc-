@@ -114,7 +114,13 @@ const getInventorySummary = async (req, res) => {
       WITH LatestEntries AS (
           SELECT DISTINCT ON (product_id) *
           FROM entries
-          ORDER BY product_id, entry_date DESC, entry_time DESC, created_at DESC
+          ORDER BY 
+            product_id, 
+            entry_date DESC,
+            CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
+            CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+            entry_time DESC,
+            created_at DESC
       ),
       HistoricalStats AS (
           SELECT product_id, MAX(closing) as max_stock
@@ -248,7 +254,13 @@ const getFinancialReport = async (req, res) => {
                 SELECT DISTINCT ON (product_id)
                     product_id, closing
                 FROM entries
-                ORDER BY product_id, entry_date DESC, entry_time DESC, created_at DESC
+                ORDER BY 
+                    product_id, 
+                    entry_date DESC,
+                    CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
+                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+                    entry_time DESC,
+                    created_at DESC
             ),
             agg AS (
                 SELECT 

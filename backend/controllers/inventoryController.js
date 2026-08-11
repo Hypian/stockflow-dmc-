@@ -13,7 +13,12 @@ const getEntries = async (req, res) => {
       FROM entries 
       JOIN products ON entries.product_id = products.id
       JOIN users ON entries.user_id = users.id
-      ORDER BY entries.entry_date DESC, entries.entry_time DESC, entries.created_at DESC
+      ORDER BY 
+        entries.entry_date DESC,
+        CASE WHEN LOWER(TRIM(entries.shift)) = 'night' THEN 2 ELSE 1 END DESC,
+        CASE WHEN LOWER(TRIM(entries.shift)) = 'night' AND CAST(SPLIT_PART(entries.entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+        entries.entry_time DESC,
+        entries.created_at DESC
     `);
     res.json(result.rows);
   } catch (error) {
@@ -63,12 +68,16 @@ const createEntry = async (req, res) => {
         SELECT closing
         FROM entries
         WHERE product_id = $1
-          AND entry_date = $2
-          AND user_id != $3
-        ORDER BY entry_time DESC NULLS LAST, created_at DESC
+          AND user_id != $2
+        ORDER BY 
+          entry_date DESC,
+          CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
+          CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+          entry_time DESC,
+          created_at DESC
         LIMIT 1
       `,
-      [product_id, entry_date, req.user.id]
+      [product_id, req.user.id]
     );
 
     if (priorRef.rows.length > 0 && priorRef.rows[0].closing !== null && priorRef.rows[0].closing !== undefined) {
