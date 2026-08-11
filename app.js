@@ -2938,8 +2938,8 @@ function getAnalyticsReportDefinitions() {
         { key: 'stock_out_value', label: 'Stock Out Value (RWF)', align: 'right' },
         { key: 'total_damaged', label: 'Damaged (Qty)', align: 'right' },
         { key: 'damaged_value', label: 'Damaged Loss (RWF)', align: 'right' },
-        { key: 'current_stock', label: 'Ending Stock (Period)', align: 'right' },
-        { key: 'current_value', label: 'Ending Value (RWF)', align: 'right' }
+        { key: 'current_stock', label: 'Ending Stock (Then)', align: 'right' },
+        { key: 'current_value', label: 'Ending Value (Then)', align: 'right' }
       ],
       value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
       formatValue: (v, key) => {

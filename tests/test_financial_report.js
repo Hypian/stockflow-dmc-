@@ -69,15 +69,9 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
     });
 
     const derivedOpening = Math.max(periodStock - totalIn + totalOut + totalDamaged, 0);
-
-    let openingStock = 0;
-    if (startDate && priorEntries.length > 0) {
-      openingStock = Number(priorEntries[0].closing || 0);
-    } else if (inPeriod.length > 0 && Number(inPeriod[inPeriod.length - 1].opening || 0) > 0) {
-      openingStock = Number(inPeriod[inPeriod.length - 1].opening || 0);
-    } else {
-      openingStock = derivedOpening;
-    }
+    const openingStock = (startDate && priorEntries.length > 0)
+      ? Number(priorEntries[0].closing || 0)
+      : derivedOpening;
 
     const unitPrice = Number(p.unitPrice || 0);
     return {

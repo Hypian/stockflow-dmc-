@@ -287,37 +287,24 @@ const getFinancialReport = async (req, res) => {
                     CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
                     entry_time DESC,
                     created_at DESC
-            ),
-            earliest_in_period AS (
-                SELECT DISTINCT ON (product_id)
-                    product_id, opening as period_opening
-                FROM entries
-                WHERE 1=1 ${periodFilter}
-                ORDER BY 
-                    product_id, 
-                    entry_date ASC,
-                    CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 1 ELSE 2 END ASC,
-                    entry_time ASC,
-                    created_at ASC
             )
             SELECT 
                 p.name as product_name,
                 COALESCE(p.unit_price, 0) as unit_price,
-                COALESCE(lip.period_closing, 0) as current_stock,
-                COALESCE(lip.period_closing, 0) * COALESCE(p.unit_price, 0) as current_value,
+                COALESCE(lip.period_closing, 0) as period_stock,
+                COALESCE(lip.period_closing, 0) * COALESCE(p.unit_price, 0) as period_value,
                 COALESCE(a.total_out, 0) as total_out,
                 COALESCE(a.total_in, 0) as total_in,
                 COALESCE(a.total_damaged, 0) as total_damaged,
                 COALESCE(a.total_out, 0) * COALESCE(p.unit_price, 0) as stock_out_value,
                 COALESCE(a.total_in, 0) * COALESCE(p.unit_price, 0) as received_value,
                 COALESCE(a.total_damaged, 0) * COALESCE(p.unit_price, 0) as damaged_value,
-                COALESCE(pc.prior_closing, NULLIF(eip.period_opening, 0), GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) as opening_stock,
-                COALESCE(pc.prior_closing, NULLIF(eip.period_opening, 0), GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) * COALESCE(p.unit_price, 0) as opening_value
+                COALESCE(pc.prior_closing, GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) as opening_stock,
+                COALESCE(pc.prior_closing, GREATEST(COALESCE(lip.period_closing, 0) - COALESCE(a.total_in, 0) + COALESCE(a.total_out, 0) + COALESCE(a.total_damaged, 0), 0)) * COALESCE(p.unit_price, 0) as opening_value
             FROM products p
             LEFT JOIN latest_in_period lip ON lip.product_id = p.id
             LEFT JOIN agg a ON a.product_id = p.id
             LEFT JOIN prior_closing pc ON pc.product_id = p.id
-            LEFT JOIN earliest_in_period eip ON eip.product_id = p.id
             WHERE p.active = true
             ORDER BY p.name ASC
         `;
@@ -329,8 +316,10 @@ const getFinancialReport = async (req, res) => {
           unit_price: Number(r.unit_price || 0),
           opening_stock: Number(r.opening_stock || 0),
           opening_value: Number(r.opening_value || 0),
-          current_stock: Number(r.current_stock || 0),
-          current_value: Number(r.current_value || 0),
+          period_stock: Number(r.period_stock || 0),
+          period_value: Number(r.period_value || 0),
+          current_stock: Number(r.period_stock || 0),
+          current_value: Number(r.period_value || 0),
           total_out: Number(r.total_out || 0),
           total_in: Number(r.total_in || 0),
           total_damaged: Number(r.total_damaged || 0),
@@ -341,8 +330,8 @@ const getFinancialReport = async (req, res) => {
 
         const summary = {
           totalOpeningValue: data.reduce((s, r) => s + r.opening_value, 0),
-          totalPeriodValue: data.reduce((s, r) => s + r.current_value, 0),
-          totalCurrentValue: data.reduce((s, r) => s + r.current_value, 0),
+          totalPeriodValue: data.reduce((s, r) => s + r.period_value, 0),
+          totalCurrentValue: data.reduce((s, r) => s + r.period_value, 0),
           totalStockOutValue: data.reduce((s, r) => s + r.stock_out_value, 0),
           totalReceivedValue: data.reduce((s, r) => s + r.received_value, 0),
           totalDamagedValue: data.reduce((s, r) => s + r.damaged_value, 0)
