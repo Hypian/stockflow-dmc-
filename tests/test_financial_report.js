@@ -38,9 +38,13 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
   const sorted = [...rawEntries].sort(compareEntriesDesc);
 
   const result = products.map(p => {
-    // Entries in period
-    const inPeriod = sorted.filter(e => {
-      if (String(e.productId) !== String(p.id)) return false;
+    const pEntries = sorted.filter(e => String(e.productId) === String(p.id));
+
+    // Current real-time stock today (latest entry overall)
+    const currentStock = pEntries.length > 0 ? Number(pEntries[0].closing || 0) : 0;
+
+    // Entries in period [startDate, endDate]
+    const inPeriod = pEntries.filter(e => {
       if (startDate && e.date < startDate) return false;
       if (endDate && e.date > endDate) return false;
       return true;
@@ -51,27 +55,34 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
     const totalDamaged = inPeriod.reduce((s, e) => s + Number(e.damaged || 0), 0);
 
     // Entries up to endDate (then)
-    const upToEnd = sorted.filter(e => {
-      if (String(e.productId) !== String(p.id)) return false;
+    const upToEnd = pEntries.filter(e => {
       if (endDate && e.date > endDate) return false;
       return true;
     });
 
-    // Stock at end of period
+    // Stock at end of period (then)
     const latestInPeriod = upToEnd.length > 0 ? upToEnd[0] : null;
     const periodStock = latestInPeriod ? Number(latestInPeriod.closing || 0) : 0;
 
     // Prior entries before startDate
-    const priorEntries = sorted.filter(e => {
-      if (String(e.productId) !== String(p.id)) return false;
+    const priorEntries = pEntries.filter(e => {
       if (startDate && e.date >= startDate) return false;
       return true;
     });
 
     const derivedOpening = Math.max(periodStock - totalIn + totalOut + totalDamaged, 0);
-    const openingStock = (startDate && priorEntries.length > 0)
-      ? Number(priorEntries[0].closing || 0)
-      : derivedOpening;
+    const earliestInPeriodOpening = (inPeriod.length > 0 && Number(inPeriod[inPeriod.length - 1].opening || 0) > 0)
+      ? Number(inPeriod[inPeriod.length - 1].opening || 0)
+      : null;
+
+    let openingStock = 0;
+    if (startDate && priorEntries.length > 0) {
+      openingStock = Number(priorEntries[0].closing || 0);
+    } else if (earliestInPeriodOpening !== null) {
+      openingStock = earliestInPeriodOpening;
+    } else {
+      openingStock = derivedOpening;
+    }
 
     const unitPrice = Number(p.unitPrice || 0);
     return {
@@ -85,14 +96,16 @@ function computeFinancialData(products, rawEntries, startDate, endDate) {
       stock_out_value: totalOut * unitPrice,
       total_damaged: totalDamaged,
       damaged_value: totalDamaged * unitPrice,
-      current_stock: periodStock,
-      current_value: periodStock * unitPrice
+      period_stock: periodStock,
+      period_value: periodStock * unitPrice,
+      current_stock: currentStock,
+      current_value: currentStock * unitPrice
     };
   });
 
   const summary = {
     totalOpeningValue: result.reduce((s, r) => s + r.opening_value, 0),
-    totalPeriodValue: result.reduce((s, r) => s + r.current_value, 0),
+    totalPeriodValue: result.reduce((s, r) => s + r.period_value, 0),
     totalCurrentValue: result.reduce((s, r) => s + r.current_value, 0),
     totalStockOutValue: result.reduce((s, r) => s + r.stock_out_value, 0),
     totalReceivedValue: result.reduce((s, r) => s + r.received_value, 0),
@@ -119,8 +132,10 @@ const entries = [
 
 // Test 1: Historical period (2026-08-09 to 2026-08-10)
 const rep1 = computeFinancialData(products, entries, '2026-08-09', '2026-08-10');
-assert.strictEqual(rep1.data[0].current_stock, 4);
-assert.strictEqual(rep1.data[0].current_value, 4000);
+assert.strictEqual(rep1.data[0].period_stock, 4);
+assert.strictEqual(rep1.data[0].period_value, 4000);
+assert.strictEqual(rep1.data[0].current_stock, 2); // Real-time stock today (Aug 11) is 2
+assert.strictEqual(rep1.data[0].current_value, 2000);
 assert.strictEqual(rep1.data[0].opening_stock, 1);
 assert.strictEqual(rep1.data[0].opening_value, 1000);
 
@@ -133,8 +148,8 @@ console.log('Report Summary Output:');
 console.log(rep2.summary);
 
 // Assertions for Aluminium foil:
-assert.strictEqual(alumFoil.current_stock, 7);
-assert.strictEqual(alumFoil.current_value, 105000);
+assert.strictEqual(alumFoil.period_stock, 7);
+assert.strictEqual(alumFoil.period_value, 105000);
 assert.strictEqual(alumFoil.opening_stock, 9);
 assert.strictEqual(alumFoil.opening_value, 135000);
 

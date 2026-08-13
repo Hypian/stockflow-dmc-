@@ -2938,15 +2938,15 @@ function getAnalyticsReportDefinitions() {
         { key: 'stock_out_value', label: 'Stock Out Value (RWF)', align: 'right' },
         { key: 'total_damaged', label: 'Damaged (Qty)', align: 'right' },
         { key: 'damaged_value', label: 'Damaged Loss (RWF)', align: 'right' },
-        { key: 'current_stock', label: 'Ending Stock (Then)', align: 'right' },
-        { key: 'current_value', label: 'Ending Value (Then)', align: 'right' }
+        { key: 'period_stock', label: 'Ending Stock (Then)', align: 'right' },
+        { key: 'period_value', label: 'Ending Value (Then)', align: 'right' }
       ],
-      value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
+      value: (row, key) => key === 'product_name' ? (row?.product_name || '—') : ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'period_stock', 'period_value', 'current_stock', 'current_value'].includes(key) ? num(row[key]) : row?.[key],
       formatValue: (v, key) => {
         if (key === 'product_name') {
           return v === null || v === undefined || v === '' ? '—' : String(v);
         }
-        if (['unit_price', 'opening_value', 'received_value', 'stock_out_value', 'damaged_value', 'current_value'].includes(key)) {
+        if (['unit_price', 'opening_value', 'received_value', 'stock_out_value', 'damaged_value', 'period_value', 'current_value'].includes(key)) {
           return Number(v || 0).toLocaleString();
         }
         return v === null || v === undefined || v === '' ? '0' : Number(v || 0).toLocaleString();
@@ -2956,7 +2956,7 @@ function getAnalyticsReportDefinitions() {
         const totalIn = summary?.totalReceivedValue ?? data.reduce((s, r) => s + num(r.received_value), 0);
         const totalOut = summary?.totalStockOutValue ?? data.reduce((s, r) => s + num(r.stock_out_value), 0);
         const totalDamaged = summary?.totalDamagedValue ?? data.reduce((s, r) => s + num(r.damaged_value), 0);
-        const totalPeriod = summary?.totalPeriodValue ?? summary?.totalCurrentValue ?? data.reduce((s, r) => s + num(r.current_value), 0);
+        const totalPeriod = summary?.totalPeriodValue ?? data.reduce((s, r) => s + num(r.period_value), 0);
         return {
           cards: [
             { label: 'Total Opening Valuation', value: totalOpening.toLocaleString() + ' RWF' },
