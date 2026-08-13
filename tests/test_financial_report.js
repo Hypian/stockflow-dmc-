@@ -34,6 +34,18 @@ function compareEntriesDesc(a, b) {
 }
 
 // Simulate the exact SQL logic from reportController.js
+function resolveOpeningStockLegacy(priorClosing, periodOpening, periodClosing, totalIn, totalOut, totalDamaged) {
+  if (priorClosing !== null && priorClosing !== undefined) return Number(priorClosing || 0);
+  if (periodOpening !== null && periodOpening !== undefined && periodOpening !== 0) return Number(periodOpening || 0);
+  return Math.max(Number(periodClosing || 0) - Number(totalIn || 0) + Number(totalOut || 0) + Number(totalDamaged || 0), 0);
+}
+
+function resolveOpeningStockFixed(priorClosing, periodOpening, periodClosing, totalIn, totalOut, totalDamaged) {
+  if (priorClosing !== null && priorClosing !== undefined) return Number(priorClosing || 0);
+  if (periodOpening !== null && periodOpening !== undefined) return Number(periodOpening || 0);
+  return Math.max(Number(periodClosing || 0) - Number(totalIn || 0) + Number(totalOut || 0) + Number(totalDamaged || 0), 0);
+}
+
 function computeFinancialData(products, rawEntries, startDate, endDate) {
   const sorted = [...rawEntries].sort(compareEntriesDesc);
 
@@ -129,6 +141,23 @@ const entries = [
   // Aluminium foil: exited 2, ending stock 7, opening was 0 in entry record
   { id: 5, productId: 2, date: '2026-08-05', time: '14:00:00', shift: 'morning', opening: 0, received: 0, disbursed: 2, damaged: 0, closing: 7 }
 ];
+
+// Regression: a genuine zero opening stock must remain zero instead of being replaced by the fallback estimate.
+const legacyOpening = resolveOpeningStockLegacy(null, 0, 10, 6, 4, 0);
+const fixedOpening = resolveOpeningStockFixed(null, 0, 10, 6, 4, 0);
+assert.strictEqual(legacyOpening, 8);
+assert.strictEqual(fixedOpening, 0);
+
+// Regression: 'Then' value must reflect the selected end-of-period stock, not the live current stock.
+const entriesWithLaterCurrent = [
+  ...entries,
+  { id: 6, productId: 1, date: '2026-08-15', time: '09:00:00', shift: 'morning', opening: 2, received: 0, disbursed: 0, damaged: 0, closing: 9 }
+];
+const repThen = computeFinancialData(products, entriesWithLaterCurrent, '2026-08-09', '2026-08-10');
+assert.strictEqual(repThen.data[0].period_stock, 4);
+assert.strictEqual(repThen.data[0].period_value, 4000);
+assert.strictEqual(repThen.data[0].current_stock, 9);
+assert.strictEqual(repThen.data[0].current_value, 9000);
 
 // Test 1: Historical period (2026-08-09 to 2026-08-10)
 const rep1 = computeFinancialData(products, entries, '2026-08-09', '2026-08-10');
