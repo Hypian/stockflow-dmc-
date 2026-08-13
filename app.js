@@ -2946,10 +2946,13 @@ function getAnalyticsReportDefinitions() {
         if (key === 'product_name') {
           return v === null || v === undefined || v === '' ? '—' : String(v);
         }
-        if (['unit_price', 'opening_value', 'received_value', 'stock_out_value', 'damaged_value', 'period_value', 'current_value'].includes(key)) {
-          return Number(v || 0).toLocaleString();
+        // For financial report numeric fields, show a dash instead of 0 for clarity
+        const isNumericKey = ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'period_stock', 'period_value', 'current_stock', 'current_value'].includes(key);
+        if (isNumericKey) {
+          const n = Number(v || 0);
+          return n === 0 ? '—' : n.toLocaleString();
         }
-        return v === null || v === undefined || v === '' ? '0' : Number(v || 0).toLocaleString();
+        return v === null || v === undefined || v === '' ? '—' : String(v);
       },
       computeSummary: (data, summary) => {
         const totalOpening = summary?.totalOpeningValue ?? data.reduce((s, r) => s + num(r.opening_value), 0);

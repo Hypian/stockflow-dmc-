@@ -251,6 +251,12 @@ const getFinancialReport = async (req, res) => {
             endCutoffFilter += ` AND entry_date <= $${params.length}`;
         }
 
+        // Opening/Value resolution logic:
+        // 1) Prefer prior_closing from entries before the period start (if present).
+        // 2) Otherwise use the earliest `opening` recorded within the requested period (this may be 0).
+        // 3) Otherwise derive opening as: period_closing - total_in + total_out + total_damaged (clamped to >= 0).
+        // The SQL below implements those fallbacks and computes monetary values by multiplying
+        // the resolved stock quantities by the product `unit_price` (opening_value, period_value, etc.).
         const sql = `
             WITH latest_in_period AS (
                 SELECT DISTINCT ON (product_id)
