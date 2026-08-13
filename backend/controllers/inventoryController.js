@@ -16,7 +16,7 @@ const getEntries = async (req, res) => {
       ORDER BY 
         entries.entry_date DESC,
         CASE WHEN LOWER(TRIM(entries.shift)) = 'night' THEN 2 ELSE 1 END DESC,
-        CASE WHEN LOWER(TRIM(entries.shift)) = 'night' AND CAST(SPLIT_PART(entries.entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+        CASE WHEN LOWER(TRIM(entries.shift)) = 'night' AND CAST(SPLIT_PART(entries.entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
         entries.entry_time DESC,
         entries.created_at DESC
     `);
@@ -72,7 +72,7 @@ const createEntry = async (req, res) => {
         ORDER BY 
           entry_date DESC,
           CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
-          CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+          CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
           entry_time DESC,
           created_at DESC
         LIMIT 1

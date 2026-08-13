@@ -118,7 +118,7 @@ const getInventorySummary = async (req, res) => {
             product_id, 
             entry_date DESC,
             CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
-            CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+            CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
             entry_time DESC,
             created_at DESC
       ),
@@ -267,7 +267,7 @@ const getFinancialReport = async (req, res) => {
                     product_id, 
                     entry_date DESC,
                     CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
-                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
                     entry_time DESC,
                     created_at DESC
             ),
@@ -290,7 +290,7 @@ const getFinancialReport = async (req, res) => {
                     product_id, 
                     entry_date DESC,
                     CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
-                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
                     entry_time DESC,
                     created_at DESC
             ),
@@ -314,7 +314,7 @@ const getFinancialReport = async (req, res) => {
                     product_id, 
                     entry_date DESC,
                     CASE WHEN LOWER(TRIM(shift)) = 'night' THEN 2 ELSE 1 END DESC,
-                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
+                    CASE WHEN LOWER(TRIM(shift)) = 'night' AND CAST(SPLIT_PART(entry_time::TEXT, ':', 1) AS INTEGER) < 10 THEN 1 ELSE 0 END DESC,
                     entry_time DESC,
                     created_at DESC
             )
