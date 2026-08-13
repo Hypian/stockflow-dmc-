@@ -2946,11 +2946,11 @@ function getAnalyticsReportDefinitions() {
         if (key === 'product_name') {
           return v === null || v === undefined || v === '' ? '—' : String(v);
         }
-        // For financial report numeric fields, show a dash instead of 0 for clarity
+        // For financial report numeric fields, display numeric values (including 0)
         const isNumericKey = ['unit_price', 'opening_stock', 'opening_value', 'total_in', 'received_value', 'total_out', 'stock_out_value', 'total_damaged', 'damaged_value', 'period_stock', 'period_value', 'current_stock', 'current_value'].includes(key);
         if (isNumericKey) {
           const n = Number(v || 0);
-          return n === 0 ? '—' : n.toLocaleString();
+          return n.toLocaleString();
         }
         return v === null || v === undefined || v === '' ? '—' : String(v);
       },
