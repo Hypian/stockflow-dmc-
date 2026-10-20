@@ -183,6 +183,10 @@ const API = {
     }
   },
 
+  importLegacyData: async (importId, products, entries) => {
+    return await API.request('/inventory/legacy-import', 'POST', { importId, products, entries });
+  },
+
   deleteProduct: async (id) => {
     return await API.request(`/inventory/products/${id}`, 'DELETE');
   },

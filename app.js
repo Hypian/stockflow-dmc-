@@ -167,50 +167,70 @@ const LS = {
   remove: (k) => localStorage.removeItem(k)
 };
 
+function createLegacyImportId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 async function migrateLegacyLocalStorage() {
+  if (!currentUser) return;
+
   const lsProducts = LS.get('sf_products_final', []);
-  if (lsProducts && lsProducts.length > 0) {
-    try {
-      console.log('Migrating', lsProducts.length, 'products from localStorage to PostgreSQL...');
-      for (const p of lsProducts) {
-        await API.saveProduct(null, { name: p.name, unit: p.unit, unit_price: p.unitPrice, active: p.active !== false });
+  const lsEntries = LS.get('sf_entries_final', []);
+  if ((!Array.isArray(lsProducts) || lsProducts.length === 0) &&
+      (!Array.isArray(lsEntries) || lsEntries.length === 0)) return;
+
+  try {
+    const knownUsers = new Map(USERS.map(user => [String(user.id), user]));
+    const knownUsersByName = new Map();
+    USERS.forEach(user => {
+      knownUsersByName.set(user.username.toLowerCase(), user);
+      knownUsersByName.set(user.name.trim().toLowerCase(), user);
+    });
+
+    const entries = (Array.isArray(lsEntries) ? lsEntries : []).map((entry, index) => {
+      if (currentUser.role !== 'admin') {
+        return { ...entry, legacyUsername: currentUser.username };
       }
-      
-      const migratedProducts = await API.getProducts();
-      const lsEntries = LS.get('sf_entries_final', []);
-      
-      if (lsEntries && lsEntries.length > 0) {
-        console.log('Migrating', lsEntries.length, 'entries from localStorage...');
-        const idMap = {};
-        lsProducts.forEach(oldP => {
-          const newP = migratedProducts.find(np => np.name === oldP.name);
-          if (newP) idMap[oldP.id] = newP.id;
-        });
-        
-        for (const e of lsEntries) {
-          const newProdId = idMap[e.productId];
-          if (newProdId) {
-            await API.createEntry({
-              product_id: newProdId,
-              opening: e.opening,
-              received: e.received,
-              damaged: e.damaged,
-              disbursed: e.disbursed,
-              closing: e.closing,
-              variance: e.variance,
-              shift: e.shift,
-              entry_date: e.date,
-              entry_time: e.time
-            });
-          }
-        }
-        LS.remove('sf_entries_final');
+
+      const namedUser = String(entry.userName || entry.user_name || entry.username || '').trim().toLowerCase();
+      const legacyUser = knownUsersByName.get(namedUser) ||
+        knownUsers.get(String(entry.userId ?? entry.user_id ?? ''));
+
+      if (!legacyUser) {
+        throw new Error(`Cannot identify the original user for saved entry ${index + 1}; local data was kept.`);
       }
-      LS.remove('sf_products_final');
-      console.log('Migration complete!');
-    } catch (migErr) {
-      console.error('Migration failed:', migErr);
+
+      return { ...entry, legacyUsername: legacyUser.username };
+    });
+
+    let importId = LS.get('sf_legacy_import_id');
+    if (!importId) {
+      importId = createLegacyImportId();
+      LS.set('sf_legacy_import_id', importId);
     }
+
+    const result = await API.importLegacyData(
+      importId,
+      Array.isArray(lsProducts) ? lsProducts : [],
+      entries
+    );
+
+    LS.remove('sf_products_final');
+    LS.remove('sf_entries_final');
+    LS.remove('sf_legacy_import_id');
+    if (result.alreadyImported) {
+      console.info('Legacy data import had already completed.');
+      return;
+    }
+    showToast(`Imported ${result.productsImported} products and ${result.entriesImported} stock entries.`, 'success');
+  } catch (migErr) {
+    console.error('Legacy data import failed:', migErr);
+    showToast(`Legacy data was not fully imported: ${migErr.message}`, 'error');
   }
 }
 
