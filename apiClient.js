@@ -58,7 +58,7 @@ const API = {
         throw new Error(`Invalid response from server (${response.status}): ${text.substring(0, 50)}...`);
       }
       
-      if (response.status === 401) {
+      if (response.status === 401 && endpoint !== '/auth/login') {
         // Token expired or invalid - clear session and reload
         API.logout();
         localStorage.removeItem('sf_current_session');
